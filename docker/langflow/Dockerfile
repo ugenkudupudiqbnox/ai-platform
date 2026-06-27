@@ -17,14 +17,13 @@ RUN mkdir -p /var/lib/langflow \
     && chown -R 1000:0 /var/lib/langflow \
     && chmod -R g+rwX /var/lib/langflow
 
-# Bring in our entrypoints and gunicorn configuration (world-readable/executable
-# so the image's existing non-root user can run them).
+# Bring in our entrypoints (world-readable/executable so the image's existing
+# non-root user can run them). The web tier is launched via `langflow run`,
+# which serves the UI + API and manages gunicorn/uvicorn workers itself.
 COPY --chmod=0755 entrypoint.sh /opt/aiplatform/entrypoint.sh
 COPY --chmod=0755 worker-entrypoint.sh /opt/aiplatform/worker-entrypoint.sh
-COPY --chmod=0644 gunicorn.conf.py /opt/aiplatform/gunicorn.conf.py
 
 ENV LANGFLOW_CONFIG_DIR=/var/lib/langflow \
-    GUNICORN_CONF=/opt/aiplatform/gunicorn.conf.py \
     PYTHONUNBUFFERED=1
 
 EXPOSE 7860 9090

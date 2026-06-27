@@ -12,18 +12,25 @@ LangFlow runs as two tiers plus a dashboard:
 
 ### Web tier (gunicorn)
 
-`docker/langflow/gunicorn.conf.py` is driven by environment variables:
+The web tier is launched with `langflow run` (serves the UI **and** API and
+manages gunicorn/uvicorn workers itself), driven by environment variables:
 
 | Variable | Meaning | Default |
 |----------|---------|---------|
-| `LANGFLOW_WORKERS` | gunicorn worker processes | `8` |
+| `LANGFLOW_WORKERS` | web worker processes | `1` |
 | `LANGFLOW_WORKER_TIMEOUT` | per-request hard timeout (s) | `300` |
-| `LANGFLOW_PRELOAD` | preload app before fork (shared mem, faster boot) | `true` |
-| `LANGFLOW_LOG_LEVEL` | gunicorn/app log level | `INFO` |
+| `LANGFLOW_LOG_LEVEL` | app log level | `INFO` |
 
-Rule of thumb: `workers ≈ (2 × CPU cores) + 1`, bounded by available RAM (each
-worker loads the app). Long flow runs should go through the **worker tier**, not
-block a web worker.
+> **Multi-worker requires a shared job queue.** LangFlow 1.10 refuses to start
+> with `LANGFLOW_WORKERS > 1` unless `LANGFLOW_JOB_QUEUE_TYPE=redis` is set,
+> because the in-memory build queue can't be shared across workers (a flow build
+> POST and its follow-up events would land on different workers). For a single
+> host, keep `LANGFLOW_WORKERS=1`. To scale the web tier:
+> 1. Set `LANGFLOW_JOB_QUEUE_TYPE=redis` (and the LangFlow Redis connection).
+> 2. Raise `LANGFLOW_WORKERS` (rule of thumb `≈ (2 × cores) + 1`, RAM permitting).
+>
+> Alternatively, scale out by running multiple `langflow` web replicas behind
+> NGINX rather than many workers in one container.
 
 ### Worker tier (Celery + Redis)
 

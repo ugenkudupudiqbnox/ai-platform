@@ -42,12 +42,17 @@ PY
 case "${ROLE}" in
   web)
     wait_for_db
-    log "Applying database migrations..."
-    # LangFlow ships an idempotent migration command; --fix applies pending heads.
-    langflow migration --fix || log "migration step reported a non-zero status (continuing)"
-
-    log "Starting LangFlow web tier via gunicorn..."
-    exec gunicorn "langflow.main:create_app()" --config "${GUNICORN_CONF}"
+    # Use LangFlow's own launcher: it applies DB migrations, serves the built
+    # frontend (UI) AND the API, and on Linux with --workers>1 runs under
+    # gunicorn + uvicorn workers. Launching gunicorn against
+    # `langflow.main:create_app()` directly does NOT mount the frontend, so "/"
+    # returns {"detail":"Not Found"}.
+    log "Starting LangFlow (UI + API) via 'langflow run'..."
+    exec langflow run \
+      --host 0.0.0.0 \
+      --port 7860 \
+      --workers "${LANGFLOW_WORKERS:-1}" \
+      --worker-timeout "${LANGFLOW_WORKER_TIMEOUT:-300}"
     ;;
 
   worker)
