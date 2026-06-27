@@ -10,9 +10,12 @@
 #   sudo ./scripts/change-domain.sh --domain new.example.com
 #
 # Flags:
-#   --domain <d>   New base domain (prompted if omitted)
-#   --skip-ssl     Don't re-issue Let's Encrypt certs (keep current/self-signed)
-#   --yes          Don't prompt for confirmation
+#   --domain <d>      New base domain (prompted if omitted)
+#   --skip-ssl        Don't re-issue Let's Encrypt certs (keep current/self-signed)
+#   --yes             Don't prompt for confirmation
+#   --rebrand-emails  Also rewrite the seed user emails (admin/dev/user@<domain>)
+#                     in Keycloak, LibreChat and Langfuse. Off by default, since
+#                     emails are identities that may differ from the domain.
 #
 # The functions below are sourced by scripts/change-domain.selftest.sh; the
 # main routine only runs when this file is executed directly.
@@ -119,18 +122,81 @@ cd_migrate_librechat_issuer() {
     || warn "Could not update LibreChat OIDC issuer; if SSO login fails, update users.openidIssuer manually."
 }
 
+# Rewrite the seed user email keys in .env to the new domain (call before
+# render_realm so the rendered realm carries the new emails). Args: <new>
+cd_rebrand_env() {
+  local new="$1"
+  set_env KEYCLOAK_SEED_ADMIN_EMAIL     "admin@${new}"
+  set_env KEYCLOAK_SEED_DEVELOPER_EMAIL "dev@${new}"
+  set_env KEYCLOAK_SEED_USER_EMAIL      "user@${new}"
+  set_env LANGFUSE_INIT_USER_EMAIL      "admin@${new}"
+}
+
+# Set a Keycloak realm user's email in place. Args: <username> <email>
+cd_set_kc_email() {
+  local username="$1" email="$2" realm cid
+  realm="$(get_env KEYCLOAK_REALM || echo AIPlatform)"
+  cid="$(dc exec -T keycloak /opt/keycloak/bin/kcadm.sh get users -r "${realm}" \
+          -q "username=${username}" --fields id --format csv --noquotes 2>/dev/null \
+        | tr -d '\r' | head -n1)"
+  if [ -z "${cid}" ]; then
+    warn "Keycloak user '${username}' not found; skipping email rebrand."
+    return 0
+  fi
+  if dc exec -T keycloak /opt/keycloak/bin/kcadm.sh update "users/${cid}" -r "${realm}" \
+       -s "email=${email}" >/dev/null 2>&1; then
+    success "Rebranded Keycloak user '${username}' email -> ${email}"
+  else
+    warn "Could not update email for Keycloak user '${username}'."
+  fi
+}
+
+# Rebrand seed user emails in the live systems (Keycloak + LibreChat + Langfuse).
+# Args: <old_domain> <new_domain>
+cd_rebrand_live() {
+  local old="$1" new="$2" au du uu muser mpass mdb pgu pgpass lfdb
+  au="$(get_env KEYCLOAK_SEED_ADMIN_USERNAME)"
+  du="$(get_env KEYCLOAK_SEED_DEVELOPER_USERNAME)"
+  uu="$(get_env KEYCLOAK_SEED_USER_USERNAME)"
+
+  log "Rebranding seed user emails to @${new}..."
+  # Keycloak realm users — authoritative source of the email claim.
+  cd_set_kc_email "${au}" "admin@${new}"
+  cd_set_kc_email "${du}" "dev@${new}"
+  cd_set_kc_email "${uu}" "user@${new}"
+
+  # LibreChat (Mongo) — update the linked accounts by username.
+  muser="$(get_env MONGO_INITDB_ROOT_USERNAME)"
+  mpass="$(get_env MONGO_INITDB_ROOT_PASSWORD)"
+  mdb="$(get_env MONGO_DB_NAME || echo LibreChat)"
+  dc exec -T mongo mongosh -u "${muser}" -p "${mpass}" --authenticationDatabase admin "${mdb}" --quiet --eval \
+    "db.users.updateOne({username:'${au}'},{\$set:{email:'admin@${new}'}});db.users.updateOne({username:'${du}'},{\$set:{email:'dev@${new}'}});db.users.updateOne({username:'${uu}'},{\$set:{email:'user@${new}'}});" \
+    >/dev/null 2>&1 || warn "Could not rebrand LibreChat emails."
+
+  # Langfuse (Postgres) — the bootstrap admin user, keyed by its old email.
+  pgu="$(get_env POSTGRES_SUPER_USER)"
+  pgpass="$(get_env POSTGRES_SUPER_PASSWORD)"
+  lfdb="$(get_env LANGFUSE_DB_NAME || echo langfuse)"
+  dc exec -T -e PGPASSWORD="${pgpass}" postgres psql -U "${pgu}" -d "${lfdb}" -c \
+    "UPDATE users SET email='admin@${new}' WHERE email='admin@${old}';" \
+    >/dev/null 2>&1 || warn "Could not rebrand Langfuse emails."
+
+  success "Seed user emails rebranded to @${new}."
+}
+
 cd_main() {
   require_root
   require_cmd envsubst
   [ -f "${ENV_FILE}" ] || die ".env not found — run ./install.sh first."
 
-  local new_domain="" skip_ssl=0 assume_yes=0
+  local new_domain="" skip_ssl=0 assume_yes=0 rebrand=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --domain) new_domain="$2"; shift 2 ;;
       --skip-ssl) skip_ssl=1; shift ;;
       --yes|-y) assume_yes=1; shift ;;
-      -h|--help) sed -n '2,21p' "$0"; exit 0 ;;
+      --rebrand-emails) rebrand=1; shift ;;
+      -h|--help) sed -n '2,24p' "$0"; exit 0 ;;
       *) die "Unknown argument: $1" ;;
     esac
   done
@@ -154,7 +220,8 @@ This will:
   - re-render the Keycloak realm template
   - update the live Keycloak clients (redirect URIs, web origins, root URLs)
   - recreate: ${CD_SERVICES[*]}
-  - re-issue TLS certificates for the new subdomains$([ "${skip_ssl}" -eq 1 ] && echo " (SKIPPED)")
+  - re-issue TLS certificates for the new subdomains$([ "${skip_ssl}" -eq 1 ] && echo " (SKIPPED)")$([ "${rebrand}" -eq 1 ] && echo "
+  - rebrand seed user emails to admin/dev/user@${new_domain}")
 
 New URLs: chat/auth/flow/trace.${new_domain}
 Make sure DNS A/AAAA records for those names point at this host.
@@ -167,6 +234,7 @@ EOF
 
   log "Updating .env..."
   cd_update_env "${new_domain}"
+  [ "${rebrand}" -eq 1 ] && cd_rebrand_env "${new_domain}"
 
   render_realm
 
@@ -178,6 +246,8 @@ EOF
   cd_kcadm_login
   log "Updating Keycloak client redirect URIs..."
   cd_update_all_clients "${new_domain}"
+
+  [ "${rebrand}" -eq 1 ] && cd_rebrand_live "${old_domain}" "${new_domain}"
 
   log "Migrating LibreChat OIDC accounts to the new issuer..."
   cd_migrate_librechat_issuer

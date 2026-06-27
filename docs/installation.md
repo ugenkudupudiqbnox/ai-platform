@@ -103,6 +103,14 @@ NGINX itself needs no change — its `server_name` matching is domain-agnostic.
 > the host **before** running it (or pass `--skip-ssl` and issue certs later with
 > `sudo ./scripts/issue-certs.sh`). Use `--yes` to skip the confirmation prompt.
 
+Seed-user emails (`admin/dev/user@<domain>`) are **not** changed by default —
+they're identities, not endpoints. To also rebrand them to the new domain across
+Keycloak, LibreChat and Langfuse, add `--rebrand-emails`:
+
+```bash
+sudo ./scripts/change-domain.sh --domain new.example.com --rebrand-emails
+```
+
 ## Configuring model providers
 
 Edit `.env` and add your keys, then `make up` (or `make upgrade`):

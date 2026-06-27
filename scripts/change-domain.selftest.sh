@@ -44,6 +44,9 @@ TRACE_HOST=trace.old.example.com
 MONGO_INITDB_ROOT_USERNAME=librechat
 MONGO_INITDB_ROOT_PASSWORD=mongopw
 MONGO_DB_NAME=LibreChat
+POSTGRES_SUPER_USER=postgres
+POSTGRES_SUPER_PASSWORD=pgpw
+LANGFUSE_DB_NAME=langfuse
 EOF
 
 # Source the unit-under-test (functions only; main is guarded out).
@@ -62,7 +65,7 @@ wait_for_service() { :; }
 dc() {
   echo "dc $*" >> "${DC_LOG}"
   case "$*" in
-    *"get clients"*) echo "deadbeef-0000-0000-0000-000000000000" ;;
+    *"get clients"*|*"get users"*) echo "deadbeef-0000-0000-0000-000000000000" ;;
   esac
   return 0
 }
@@ -144,6 +147,20 @@ echo "[4b] librechat issuer migration"
 cd_migrate_librechat_issuer
 assert_grep "mongosh" "${DC_LOG}" "runs a mongo update against LibreChat"
 assert_grep "openidIssuer:'https://auth.new.example.com/realms/AIPlatform'" "${DC_LOG}" "repoints openid users at the new issuer"
+
+# --- 4c. Email rebrand (--rebrand-emails) ------------------------------------
+echo "[4c] seed email rebrand"
+cd_rebrand_env "new.example.com"
+assert_eq "admin@new.example.com" "$(get_env KEYCLOAK_SEED_ADMIN_EMAIL)"     "admin email rebranded in .env"
+assert_eq "dev@new.example.com"   "$(get_env KEYCLOAK_SEED_DEVELOPER_EMAIL)" "dev email rebranded in .env"
+assert_eq "user@new.example.com"  "$(get_env KEYCLOAK_SEED_USER_EMAIL)"      "user email rebranded in .env"
+assert_eq "admin@new.example.com" "$(get_env LANGFUSE_INIT_USER_EMAIL)"      "langfuse init email rebranded in .env"
+: > "${DC_LOG}"
+cd_rebrand_live "old.example.com" "new.example.com"
+assert_grep "update users/" "${DC_LOG}" "updates a Keycloak user via kcadm"
+assert_grep "email=admin@new.example.com" "${DC_LOG}" "sets new admin email in Keycloak"
+assert_grep "email:'dev@new.example.com'" "${DC_LOG}" "updates LibreChat dev email (mongo)"
+assert_grep "UPDATE users SET email='admin@new.example.com' WHERE email='admin@old.example.com'" "${DC_LOG}" "updates Langfuse admin email (postgres)"
 
 # --- 5. Service recreation set -----------------------------------------------
 echo "[5] service recreation"
