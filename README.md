@@ -8,6 +8,37 @@ A production-ready, self-hosted AI platform deployed with Docker Compose on
 entire stack with generated secrets, automatic database creation, Keycloak SSO,
 TLS certificates, backups and monitoring.
 
+## Quick Start
+
+> **Prerequisites:** a fresh Ubuntu 24.04 host (≥ 8 vCPU / 16 GB RAM / 60 GB disk),
+> root access, and DNS records for the `chat`, `auth`, `flow`, `trace` subdomains
+> pointing at the host. Full list in [Requirements](#requirements).
+
+```bash
+git clone https://github.com/ugenkudupudiqbnox/ai-platform.git
+cd ai-platform
+sudo ./install.sh --domain ai.example.com --email admin@example.com
+```
+
+That single command will:
+
+1. Detect the OS and install Docker + the Compose plugin.
+2. Generate every password/secret and write a locked-down `.env`.
+3. Create the four service databases with least-privilege users.
+4. Import the Keycloak `AIPlatform` realm (clients, roles, groups, users).
+5. Run all migrations, bootstrap Langfuse keys, and auto-wire LangFlow tracing.
+6. Issue Let's Encrypt certificates and start NGINX.
+7. Install systemd timers for certificate renewal and daily backups.
+8. Run health checks and print the access URLs and credentials.
+
+No manual configuration is required. If DNS isn't ready, the platform comes up on
+self-signed certificates — fix DNS and run `sudo ./scripts/issue-certs.sh`.
+
+Once it finishes, browse to `https://chat.<your-domain>` and sign in via Keycloak.
+See [docs/installation.md](docs/installation.md) for a step-by-step walkthrough.
+
+## What's included
+
 | Layer        | Component                                   |
 |--------------|---------------------------------------------|
 | Edge         | NGINX (TLS, HTTP/2, rate limiting), oauth2-proxy |
@@ -45,31 +76,6 @@ TLS certificates, backups and monitoring.
 ```
 
 See [docs/architecture.md](docs/architecture.md) for the full design.
-
-## Quick start
-
-On a fresh Ubuntu 24.04 server with DNS records for `chat`, `auth`, `flow`,
-`trace` subdomains pointing at the host:
-
-```bash
-git clone <this-repo> ai-platform
-cd ai-platform
-sudo ./install.sh --domain ai.example.com --email admin@example.com
-```
-
-The installer will:
-
-1. Detect the OS and install Docker + the Compose plugin.
-2. Generate every password/secret and write a locked-down `.env`.
-3. Create the four service databases with least-privilege users.
-4. Import the Keycloak `AIPlatform` realm (clients, roles, groups, users).
-5. Run all migrations, bootstrap Langfuse keys, and auto-wire LangFlow tracing.
-6. Issue Let's Encrypt certificates and start NGINX.
-7. Install systemd timers for certificate renewal and daily backups.
-8. Run health checks and print the access URLs and credentials.
-
-No manual configuration is required. If DNS isn't ready, the platform comes up
-on self-signed certificates — fix DNS and run `sudo ./scripts/issue-certs.sh`.
 
 ## Day-2 operations
 
