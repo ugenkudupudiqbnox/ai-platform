@@ -32,12 +32,13 @@ fi
 
 # Remove systemd timers if present.
 if command -v systemctl >/dev/null 2>&1; then
+  SYSTEMD_DIR="${SYSTEMD_DIR:-/etc/systemd/system}"   # overridable for testing
   for unit in aiplatform-certbot-renew aiplatform-backup; do
     systemctl disable --now "${unit}.timer" >/dev/null 2>&1 || true
   done
   if [ "${PURGE}" -eq 1 ]; then
-    rm -f /etc/systemd/system/aiplatform-certbot-renew.{service,timer} \
-          /etc/systemd/system/aiplatform-backup.{service,timer}
+    rm -f "${SYSTEMD_DIR}"/aiplatform-certbot-renew.{service,timer} \
+          "${SYSTEMD_DIR}"/aiplatform-backup.{service,timer}
     systemctl daemon-reload >/dev/null 2>&1 || true
     log "Removed systemd units."
   fi
