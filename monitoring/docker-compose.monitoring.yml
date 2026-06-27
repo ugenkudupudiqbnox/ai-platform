@@ -1,0 +1,117 @@
+# =============================================================================
+# Monitoring overlay — enable with:
+#   docker compose -f docker-compose.yml -f monitoring/docker-compose.monitoring.yml \
+#     --profile monitoring up -d
+# (or `make monitoring-up`)
+#
+# Networks (backend/edge) and the shared env are inherited from the base
+# docker-compose.yml when both files are merged.
+# =============================================================================
+
+volumes:
+  prometheus_data:
+  grafana_data:
+
+services:
+  prometheus:
+    image: ${PROMETHEUS_IMAGE}
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --web.enable-lifecycle
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks: [backend, edge]
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  grafana:
+    image: ${GRAFANA_IMAGE}
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s/"
+    ports:
+      - "${GRAFANA_BIND}:3000"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    networks: [backend]
+    depends_on: [prometheus]
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  node-exporter:
+    image: ${NODE_EXPORTER_IMAGE}
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    command:
+      - --path.rootfs=/host
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+    networks: [backend]
+
+  cadvisor:
+    image: ${CADVISOR_IMAGE}
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks: [backend]
+
+  postgres-exporter:
+    image: ${POSTGRES_EXPORTER_IMAGE}
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${POSTGRES_SUPER_USER}:${POSTGRES_SUPER_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=disable"
+    networks: [backend]
+    depends_on: [prometheus]
+
+  redis-exporter:
+    image: ${REDIS_EXPORTER_IMAGE}
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR: "redis://${REDIS_HOST}:${REDIS_PORT}"
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    networks: [backend]
+    depends_on: [prometheus]
+
+  nginx-exporter:
+    image: ${NGINX_EXPORTER_IMAGE}
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    command:
+      - --nginx.scrape-uri=http://nginx:8081/stub_status
+    networks: [backend, edge]
+    depends_on: [prometheus]
+
+  otel-collector:
+    image: ${OTEL_COLLECTOR_IMAGE}
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    command: ["--config=/etc/otel/otel-collector-config.yaml"]
+    volumes:
+      - ./monitoring/otel/otel-collector-config.yaml:/etc/otel/otel-collector-config.yaml:ro
+    environment:
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+    networks: [backend]

@@ -1,0 +1,83 @@
+name: build
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lint-shell:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: Lint shell scripts
+        run: |
+          shellcheck install.sh upgrade.sh uninstall.sh healthcheck.sh scripts/*.sh \
+            docker/postgres/init/*.sh docker/langflow/*.sh
+
+  lint-yaml:
+    name: yamllint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install yamllint
+        run: pipx install yamllint || pip install --user yamllint
+      - name: Lint YAML
+        run: |
+          yamllint -d "{extends: relaxed, rules: {line-length: disable}}" \
+            docker-compose.yml monitoring/ .github/
+
+  validate-compose:
+    name: docker compose config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Render an .env for validation
+        run: |
+          cp .env.example .env
+          # Replace placeholders with throwaway values so interpolation succeeds.
+          sed -i 's/__GENERATED__/ci-placeholder-value/g' .env
+      - name: Validate base compose
+        run: docker compose --env-file .env config -q
+      - name: Validate monitoring overlay
+        run: |
+          docker compose --env-file .env \
+            -f docker-compose.yml -f monitoring/docker-compose.monitoring.yml config -q
+
+  lint-dockerfiles:
+    name: hadolint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint Keycloak Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: docker/keycloak/Dockerfile
+          failure-threshold: error
+      - name: Lint LangFlow Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: docker/langflow/Dockerfile
+          failure-threshold: error
+
+  validate-json:
+    name: JSON validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate JSON files
+        run: |
+          sudo apt-get update && sudo apt-get install -y jq gettext-base
+          # Render the realm template with dummy values, then validate.
+          export KEYCLOAK_REALM=AIPlatform CHAT_HOST=chat.example.com \
+            AUTH_HOST=auth.example.com FLOW_HOST=flow.example.com TRACE_HOST=trace.example.com \
+            KEYCLOAK_CLIENT_SECRET_LIBRECHAT=x KEYCLOAK_CLIENT_SECRET_LANGFLOW=y KEYCLOAK_CLIENT_SECRET_LANGFUSE=z \
+            KEYCLOAK_SEED_ADMIN_USERNAME=a KEYCLOAK_SEED_ADMIN_EMAIL=a@b.c KEYCLOAK_SEED_ADMIN_PASSWORD=p \
+            KEYCLOAK_SEED_DEVELOPER_USERNAME=d KEYCLOAK_SEED_DEVELOPER_EMAIL=d@b.c KEYCLOAK_SEED_DEVELOPER_PASSWORD=p \
+            KEYCLOAK_SEED_USER_USERNAME=u KEYCLOAK_SEED_USER_EMAIL=u@b.c KEYCLOAK_SEED_USER_PASSWORD=p
+          envsubst < docker/keycloak/realm.json.tmpl | jq empty
+          jq empty monitoring/grafana/provisioning/dashboards/platform-overview.json

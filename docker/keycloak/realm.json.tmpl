@@ -1,0 +1,199 @@
+{
+  "realm": "${KEYCLOAK_REALM}",
+  "enabled": true,
+  "displayName": "Enterprise AI Platform",
+  "loginTheme": "aiplatform",
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": true,
+  "rememberMe": true,
+  "verifyEmail": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "maxFailureWaitSeconds": 900,
+  "failureFactor": 10,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "roles": {
+    "realm": [
+      { "name": "Admin", "description": "Full administrative access across the platform" },
+      { "name": "Developer", "description": "Build and manage flows, traces and integrations" },
+      { "name": "User", "description": "Standard end-user access to chat and tooling" },
+      { "name": "Guest", "description": "Limited read-only access" }
+    ]
+  },
+  "defaultRoles": ["User"],
+  "groups": [
+    {
+      "name": "Admins",
+      "path": "/Admins",
+      "realmRoles": ["Admin", "Developer", "User"]
+    },
+    {
+      "name": "Developers",
+      "path": "/Developers",
+      "realmRoles": ["Developer", "User"]
+    },
+    {
+      "name": "Users",
+      "path": "/Users",
+      "realmRoles": ["User"]
+    }
+  ],
+  "users": [
+    {
+      "username": "${KEYCLOAK_SEED_ADMIN_USERNAME}",
+      "email": "${KEYCLOAK_SEED_ADMIN_EMAIL}",
+      "firstName": "Platform",
+      "lastName": "Admin",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        { "type": "password", "value": "${KEYCLOAK_SEED_ADMIN_PASSWORD}", "temporary": false }
+      ],
+      "groups": ["/Admins"]
+    },
+    {
+      "username": "${KEYCLOAK_SEED_DEVELOPER_USERNAME}",
+      "email": "${KEYCLOAK_SEED_DEVELOPER_EMAIL}",
+      "firstName": "Platform",
+      "lastName": "Developer",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        { "type": "password", "value": "${KEYCLOAK_SEED_DEVELOPER_PASSWORD}", "temporary": false }
+      ],
+      "groups": ["/Developers"]
+    },
+    {
+      "username": "${KEYCLOAK_SEED_USER_USERNAME}",
+      "email": "${KEYCLOAK_SEED_USER_EMAIL}",
+      "firstName": "Platform",
+      "lastName": "User",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        { "type": "password", "value": "${KEYCLOAK_SEED_USER_PASSWORD}", "temporary": false }
+      ],
+      "groups": ["/Users"]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "librechat",
+      "name": "LibreChat",
+      "protocol": "openid-connect",
+      "enabled": true,
+      "publicClient": false,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": true,
+      "secret": "${KEYCLOAK_CLIENT_SECRET_LIBRECHAT}",
+      "rootUrl": "https://${CHAT_HOST}",
+      "baseUrl": "https://${CHAT_HOST}",
+      "redirectUris": ["https://${CHAT_HOST}/oauth/openid/callback"],
+      "webOrigins": ["https://${CHAT_HOST}"],
+      "attributes": {
+        "post.logout.redirect.uris": "https://${CHAT_HOST}/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "claim.name": "groups"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "langflow",
+      "name": "LangFlow (via oauth2-proxy)",
+      "protocol": "openid-connect",
+      "enabled": true,
+      "publicClient": false,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": true,
+      "secret": "${KEYCLOAK_CLIENT_SECRET_LANGFLOW}",
+      "rootUrl": "https://${FLOW_HOST}",
+      "baseUrl": "https://${FLOW_HOST}",
+      "redirectUris": ["https://${FLOW_HOST}/oauth2/callback"],
+      "webOrigins": ["https://${FLOW_HOST}"],
+      "attributes": {
+        "post.logout.redirect.uris": "https://${FLOW_HOST}/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "claim.name": "groups"
+          }
+        },
+        {
+          "name": "audience-langflow",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "langflow",
+            "id.token.claim": "true",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "langfuse",
+      "name": "Langfuse",
+      "protocol": "openid-connect",
+      "enabled": true,
+      "publicClient": false,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": true,
+      "secret": "${KEYCLOAK_CLIENT_SECRET_LANGFUSE}",
+      "rootUrl": "https://${TRACE_HOST}",
+      "baseUrl": "https://${TRACE_HOST}",
+      "redirectUris": ["https://${TRACE_HOST}/api/auth/callback/keycloak"],
+      "webOrigins": ["https://${TRACE_HOST}"],
+      "attributes": {
+        "post.logout.redirect.uris": "https://${TRACE_HOST}/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "claim.name": "groups"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -216,3 +216,39 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+# Secrets and generated environment
+.env
+.env.*
+!.env.example
+
+# Rendered config (produced from *.tmpl by install.sh)
+docker/keycloak/realm.json
+docker/librechat/librechat.yaml
+
+# TLS material
+certbot/
+letsencrypt/
+*.pem
+*.crt
+*.key
+!docker/keycloak/themes/**
+
+# Backups
+backups/*
+!backups/.gitkeep
+
+# Runtime data / volumes (if bind-mounted)
+data/
+volumes/
+
+# Logs
+*.log
+logs/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/

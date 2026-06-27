@@ -1,0 +1,54 @@
+/* =============================================================================
+   Enterprise AI Platform — Keycloak login branding
+   ========================================================================== */
+
+:root {
+  --aip-primary: #4f46e5;
+  --aip-primary-dark: #3730a3;
+  --aip-bg: #0f172a;
+  --aip-card: #ffffff;
+  --aip-text: #0f172a;
+}
+
+body.aiplatform,
+.login-pf body,
+.aiplatform-login {
+  background: radial-gradient(circle at top, #1e293b 0%, var(--aip-bg) 70%) fixed;
+  font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+.login-pf-page .card-pf {
+  border-top: 4px solid var(--aip-primary);
+  border-radius: 12px;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.35);
+  background: var(--aip-card);
+}
+
+#kc-header-wrapper {
+  color: #e2e8f0;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: none;
+}
+
+.btn-primary {
+  background-color: var(--aip-primary);
+  border-color: var(--aip-primary);
+  font-weight: 600;
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+  background-color: var(--aip-primary-dark);
+  border-color: var(--aip-primary-dark);
+}
+
+input.form-control:focus {
+  border-color: var(--aip-primary);
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.25);
+}
+
+a {
+  color: var(--aip-primary);
+}

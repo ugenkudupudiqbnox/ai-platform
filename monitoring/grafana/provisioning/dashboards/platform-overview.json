@@ -1,0 +1,79 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 0,
+  "schemaVersion": 39,
+  "tags": ["ai-platform"],
+  "title": "AI Platform — Overview",
+  "uid": "ai-platform-overview",
+  "time": { "from": "now-6h", "to": "now" },
+  "timezone": "browser",
+  "refresh": "30s",
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "CPU usage per container",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(rate(container_cpu_usage_seconds_total{name!=\"\"}[5m])) by (name)",
+          "legendFormat": "{{name}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Memory usage per container",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(container_memory_usage_bytes{name!=\"\"}) by (name)",
+          "legendFormat": "{{name}}"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Redis connected clients",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 8 },
+      "targets": [{ "expr": "redis_connected_clients" }]
+    },
+    {
+      "type": "stat",
+      "title": "PostgreSQL active connections",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 8 },
+      "targets": [{ "expr": "sum(pg_stat_database_numbackends)" }]
+    },
+    {
+      "type": "timeseries",
+      "title": "NGINX requests/sec",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 8 },
+      "targets": [{ "expr": "rate(nginx_http_requests_total[5m])", "legendFormat": "requests/s" }]
+    },
+    {
+      "type": "timeseries",
+      "title": "Node memory available",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 14 },
+      "targets": [{ "expr": "node_memory_MemAvailable_bytes", "legendFormat": "available" }]
+    },
+    {
+      "type": "timeseries",
+      "title": "Disk used (rootfs)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 14 },
+      "targets": [
+        {
+          "expr": "100 - (node_filesystem_avail_bytes{mountpoint=\"/host\"} / node_filesystem_size_bytes{mountpoint=\"/host\"} * 100)",
+          "legendFormat": "% used"
+        }
+      ]
+    }
+  ]
+}

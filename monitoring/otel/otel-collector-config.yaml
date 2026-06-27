@@ -1,0 +1,52 @@
+# =============================================================================
+# OpenTelemetry Collector — receives OTLP traces/metrics from platform services
+# and forwards traces to Langfuse's OTLP ingestion endpoint, while exposing a
+# Prometheus endpoint for collector self-metrics.
+#
+# Point instrumented apps at:  http://otel-collector:4317  (gRPC)
+#                              http://otel-collector:4318  (HTTP)
+# =============================================================================
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 5s
+    send_batch_size: 512
+  memory_limiter:
+    check_interval: 5s
+    limit_percentage: 80
+    spike_limit_percentage: 20
+
+exporters:
+  # Forward traces to Langfuse's OTLP endpoint. Langfuse authenticates OTLP with
+  # Basic auth using base64("public_key:secret_key"); set the header in the
+  # instrumented client, or use a dedicated auth extension if preferred.
+  otlphttp/langfuse:
+    endpoint: http://langfuse-web:3000/api/public/otel
+    headers:
+      x-langfuse-public-key: ${env:LANGFUSE_PUBLIC_KEY}
+      x-langfuse-secret-key: ${env:LANGFUSE_SECRET_KEY}
+  debug:
+    verbosity: normal
+  prometheus:
+    endpoint: 0.0.0.0:8889
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp/langfuse, debug]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [prometheus]
+  telemetry:
+    logs:
+      level: info
