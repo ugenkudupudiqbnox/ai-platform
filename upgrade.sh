@@ -23,7 +23,7 @@ fi
 
 # Re-render config in case templates changed.
 log "Re-rendering LibreChat configuration..."
-cp "${REPO_ROOT}/docker/librechat/librechat.yaml.tmpl" "${REPO_ROOT}/docker/librechat/librechat.yaml"
+render_librechat
 
 log "Pulling updated images..."
 dc pull --ignore-buildable || dc pull || warn "Some images could not be pulled."

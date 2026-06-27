@@ -131,28 +131,8 @@ chmod 600 "${ENV_FILE}"
 
 # --- 5. Render templated configuration ---------------------------------------
 heading "Step 2/9 — Rendering service configuration"
-render_realm() {
-  local vars=(
-    KEYCLOAK_REALM CHAT_HOST AUTH_HOST FLOW_HOST TRACE_HOST
-    KEYCLOAK_CLIENT_SECRET_LIBRECHAT KEYCLOAK_CLIENT_SECRET_LANGFLOW KEYCLOAK_CLIENT_SECRET_LANGFUSE
-    KEYCLOAK_SEED_ADMIN_USERNAME KEYCLOAK_SEED_ADMIN_EMAIL KEYCLOAK_SEED_ADMIN_PASSWORD
-    KEYCLOAK_SEED_DEVELOPER_USERNAME KEYCLOAK_SEED_DEVELOPER_EMAIL KEYCLOAK_SEED_DEVELOPER_PASSWORD
-    KEYCLOAK_SEED_USER_USERNAME KEYCLOAK_SEED_USER_EMAIL KEYCLOAK_SEED_USER_PASSWORD
-  )
-  local subst="" v
-  for v in "${vars[@]}"; do
-    export "${v}"="$(get_env "${v}")"
-    subst+="\${${v}} "
-  done
-  envsubst "${subst}" \
-    < "${REPO_ROOT}/docker/keycloak/realm.json.tmpl" \
-    > "${REPO_ROOT}/docker/keycloak/realm.json"
-  log "Rendered docker/keycloak/realm.json"
-}
 render_realm
-
-cp "${REPO_ROOT}/docker/librechat/librechat.yaml.tmpl" "${REPO_ROOT}/docker/librechat/librechat.yaml"
-log "Rendered docker/librechat/librechat.yaml"
+render_librechat
 
 # --- 6. Folders & permissions ------------------------------------------------
 mkdir -p "${REPO_ROOT}/backups"

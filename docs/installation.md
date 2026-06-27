@@ -72,6 +72,33 @@ make health
 `--force-secrets` to rotate). Realm import only happens on Keycloak's first boot;
 to re-import, see [troubleshooting.md](troubleshooting.md).
 
+## Changing the domain after install
+
+You can move the platform to a different base domain at any time without
+reinstalling:
+
+```bash
+sudo ./scripts/change-domain.sh --domain new.example.com
+# or
+make change-domain D=new.example.com
+```
+
+This script:
+
+1. Updates `BASE_DOMAIN` and the `chat./auth./flow./trace.` hostnames in `.env`.
+2. Re-renders the Keycloak realm template.
+3. **Updates the live Keycloak clients in place** (redirect URIs, web origins,
+   root URLs) via `kcadm` — no realm wipe, so users and data are preserved.
+4. Recreates the services that embed the hostname (Keycloak, oauth2-proxy,
+   LibreChat, Langfuse web/worker, LangFlow web/worker).
+5. Re-issues Let's Encrypt certificates for the new subdomains.
+
+NGINX itself needs no change — its `server_name` matching is domain-agnostic.
+
+> Point DNS A/AAAA records for the new `chat./auth./flow./trace.` subdomains at
+> the host **before** running it (or pass `--skip-ssl` and issue certs later with
+> `sudo ./scripts/issue-certs.sh`). Use `--yes` to skip the confirmation prompt.
+
 ## Configuring model providers
 
 Edit `.env` and add your keys, then `make up` (or `make upgrade`):

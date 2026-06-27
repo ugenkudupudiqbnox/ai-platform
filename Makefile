@@ -8,7 +8,7 @@ DC := docker compose --env-file $(ENV_FILE)
 .DEFAULT_GOAL := help
 
 .PHONY: help install upgrade uninstall up down restart ps logs health \
-        backup restore build pull reload-nginx issue-certs \
+        backup restore build pull reload-nginx issue-certs change-domain \
         monitoring-up monitoring-down scale-workers config validate
 
 help: ## Show this help
@@ -59,6 +59,9 @@ reload-nginx: ## Reload NGINX configuration
 
 issue-certs: ## (Re)issue Let's Encrypt certificates
 	sudo ./scripts/issue-certs.sh
+
+change-domain: ## Change the base domain post-install: make change-domain D=new.example.com
+	sudo ./scripts/change-domain.sh --domain $(D)
 
 scale-workers: ## Scale LangFlow workers: make scale-workers N=4
 	$(DC) up -d --scale langflow-worker=$(N)

@@ -83,6 +83,35 @@ rand_uuid()  {
   fi
 }
 
+# --- Config rendering --------------------------------------------------------
+# Render docker/keycloak/realm.json from its template, substituting only the
+# allow-listed variables (so nothing else in the JSON is touched).
+render_realm() {
+  local vars=(
+    KEYCLOAK_REALM CHAT_HOST AUTH_HOST FLOW_HOST TRACE_HOST
+    KEYCLOAK_CLIENT_SECRET_LIBRECHAT KEYCLOAK_CLIENT_SECRET_LANGFLOW KEYCLOAK_CLIENT_SECRET_LANGFUSE
+    KEYCLOAK_SEED_ADMIN_USERNAME KEYCLOAK_SEED_ADMIN_EMAIL KEYCLOAK_SEED_ADMIN_PASSWORD
+    KEYCLOAK_SEED_DEVELOPER_USERNAME KEYCLOAK_SEED_DEVELOPER_EMAIL KEYCLOAK_SEED_DEVELOPER_PASSWORD
+    KEYCLOAK_SEED_USER_USERNAME KEYCLOAK_SEED_USER_EMAIL KEYCLOAK_SEED_USER_PASSWORD
+  )
+  local subst="" v
+  for v in "${vars[@]}"; do
+    export "${v}"="$(get_env "${v}")"
+    subst+="\${${v}} "
+  done
+  envsubst "${subst}" \
+    < "${REPO_ROOT}/docker/keycloak/realm.json.tmpl" \
+    > "${REPO_ROOT}/docker/keycloak/realm.json"
+  log "Rendered docker/keycloak/realm.json"
+}
+
+# Render docker/librechat/librechat.yaml (LibreChat resolves ${ENV} itself).
+render_librechat() {
+  cp "${REPO_ROOT}/docker/librechat/librechat.yaml.tmpl" \
+     "${REPO_ROOT}/docker/librechat/librechat.yaml"
+  log "Rendered docker/librechat/librechat.yaml"
+}
+
 # --- Health helpers ----------------------------------------------------------
 # Wait until a compose service reports healthy (or running, if it has no
 # healthcheck). Args: <service> [timeout_seconds]

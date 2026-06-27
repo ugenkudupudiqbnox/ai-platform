@@ -44,10 +44,17 @@ They're internal by default. Either tunnel over SSH or add an NGINX vhost
 (copy `trace.conf` and point it at `grafana:3000` / `flower:5555`, ideally behind
 oauth2-proxy).
 
-**Q: Can I change the subdomains (e.g. `chatbot.` instead of `chat.`)?**
-The NGINX vhosts match on the `chat./auth./flow./trace.` prefixes. Changing them
-means editing the regex `server_name` in `docker/nginx/conf.d/*.conf`, the
-derived `*_HOST` values, and the Keycloak redirect URIs.
+**Q: How do I change the base domain after installation?**
+Run `sudo ./scripts/change-domain.sh --domain new.example.com` (or
+`make change-domain D=new.example.com`). It updates `.env`, updates the live
+Keycloak clients in place (no data loss), recreates the affected services and
+re-issues TLS certs. See [installation.md](installation.md#changing-the-domain-after-install).
+
+**Q: Can I change the subdomain prefixes (e.g. `chatbot.` instead of `chat.`)?**
+The base domain is handled by `change-domain.sh`, but the *prefixes* themselves
+(`chat./auth./flow./trace.`) are matched by the regex `server_name` in
+`docker/nginx/conf.d/*.conf`. Changing a prefix means editing that regex, the
+derived `*_HOST` values in `.env`, and the Keycloak client redirect URIs.
 
 **Q: Is it safe to re-run `install.sh`?**
 Yes. It preserves existing secrets and only re-applies idempotent steps. Use
