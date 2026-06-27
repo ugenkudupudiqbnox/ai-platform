@@ -17,20 +17,35 @@ manages gunicorn/uvicorn workers itself), driven by environment variables:
 
 | Variable | Meaning | Default |
 |----------|---------|---------|
-| `LANGFLOW_WORKERS` | web worker processes | `1` |
+| `LANGFLOW_WORKERS` | web worker processes | `4` |
+| `LANGFLOW_JOB_QUEUE_TYPE` | shared build/event queue (`redis` enables multi-worker) | `redis` |
 | `LANGFLOW_WORKER_TIMEOUT` | per-request hard timeout (s) | `300` |
 | `LANGFLOW_LOG_LEVEL` | app log level | `INFO` |
 
-> **Multi-worker requires a shared job queue.** LangFlow 1.10 refuses to start
-> with `LANGFLOW_WORKERS > 1` unless `LANGFLOW_JOB_QUEUE_TYPE=redis` is set,
-> because the in-memory build queue can't be shared across workers (a flow build
-> POST and its follow-up events would land on different workers). For a single
-> host, keep `LANGFLOW_WORKERS=1`. To scale the web tier:
-> 1. Set `LANGFLOW_JOB_QUEUE_TYPE=redis` (and the LangFlow Redis connection).
-> 2. Raise `LANGFLOW_WORKERS` (rule of thumb `≈ (2 × cores) + 1`, RAM permitting).
->
-> Alternatively, scale out by running multiple `langflow` web replicas behind
-> NGINX rather than many workers in one container.
+**Multi-worker is enabled by default** via a shared Redis job queue
+(`LANGFLOW_JOB_QUEUE_TYPE=redis`). LangFlow 1.10 refuses to start with
+`LANGFLOW_WORKERS > 1` using the default in-memory queue, because a flow-build
+POST and its follow-up event stream could land on different workers. The queue
+URL is built from the Redis settings in `docker-compose.yml`:
+`LANGFLOW_REDIS_QUEUE_URL=redis://default:<password>@redis:6379/1` (consumed via
+`StrictRedis.from_url`, so the password is honored — unlike the separate
+`LANGFLOW_REDIS_*` cache vars).
+
+**Sizing `LANGFLOW_WORKERS`:** start around the CPU core count, bounded by RAM.
+gunicorn preloads the app and forks, so workers share memory copy-on-write — on a
+6-core / 16 GB host, 4 workers use ~1.8 GB total (not 4×). Guidance:
+
+| Host | Suggested `LANGFLOW_WORKERS` |
+|------|------------------------------|
+| 2 cores / 4 GB | 2 |
+| 4 cores / 8 GB | 3 |
+| 6 cores / 16 GB | 4 (default) |
+| 8+ cores / 32 GB | 6–8 |
+
+If `LANGFLOW_WORKERS=1` is enough for you, you can set
+`LANGFLOW_JOB_QUEUE_TYPE=memory` to drop the Redis dependency. To scale beyond
+one host, run multiple `langflow` replicas behind NGINX (all sharing the Redis
+queue) rather than ever-more workers in one container.
 
 ### Worker tier (Celery + Redis)
 
