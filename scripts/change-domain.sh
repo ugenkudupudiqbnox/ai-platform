@@ -13,104 +13,70 @@
 #   --domain <d>   New base domain (prompted if omitted)
 #   --skip-ssl     Don't re-issue Let's Encrypt certs (keep current/self-signed)
 #   --yes          Don't prompt for confirmation
+#
+# The functions below are sourced by scripts/change-domain.selftest.sh; the
+# main routine only runs when this file is executed directly.
 # =============================================================================
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=common.sh
 source "${SCRIPT_DIR}/common.sh"
 
-require_root
-require_cmd envsubst
-[ -f "${ENV_FILE}" ] || die ".env not found — run ./install.sh first."
+# Services that embed the public hostname and must be recreated on a change.
+CD_SERVICES=(oauth2-proxy librechat langfuse-web langfuse-worker langflow langflow-worker)
 
-NEW_DOMAIN=""; SKIP_SSL=0; ASSUME_YES=0
-while [ $# -gt 0 ]; do
-  case "$1" in
-    --domain) NEW_DOMAIN="$2"; shift 2 ;;
-    --skip-ssl) SKIP_SSL=1; shift ;;
-    --yes|-y) ASSUME_YES=1; shift ;;
-    -h|--help) sed -n '2,18p' "$0"; exit 0 ;;
-    *) die "Unknown argument: $1" ;;
+# Validate a candidate domain. Returns non-zero (without exiting) on problems so
+# callers/tests can react. Args: <new> <old>
+cd_validate_domain() {
+  local new="$1" old="${2:-}"
+  if [ -z "${new}" ]; then
+    warn "A new domain is required."
+    return 1
+  fi
+  case "${new}" in
+    *.*) : ;;
+    *) warn "Domain '${new}' does not look valid (expected e.g. ai.example.com)."; return 1 ;;
   esac
-done
+  if [ "${new}" = "${old}" ]; then
+    warn "New domain equals the current domain (${old}); nothing to change."
+    return 2
+  fi
+  return 0
+}
 
-OLD_DOMAIN="$(get_env BASE_DOMAIN || echo "")"
-REALM="$(get_env KEYCLOAK_REALM || echo AIPlatform)"
+# Write the new base domain and derived hostnames into .env. Args: <new>
+cd_update_env() {
+  local new="$1"
+  set_env BASE_DOMAIN "${new}"
+  set_env CHAT_HOST  "chat.${new}"
+  set_env AUTH_HOST  "auth.${new}"
+  set_env FLOW_HOST  "flow.${new}"
+  set_env TRACE_HOST "trace.${new}"
+  chmod 600 "${ENV_FILE}" 2>/dev/null || true
+}
 
-if [ -z "${NEW_DOMAIN}" ]; then
-  [ -t 0 ] || die "No --domain given and not interactive."
-  read -r -p "New base domain (current: ${OLD_DOMAIN:-unset}): " NEW_DOMAIN
-fi
-[ -n "${NEW_DOMAIN}" ] || die "A new domain is required."
-# Basic sanity: must look like a dotted hostname.
-case "${NEW_DOMAIN}" in
-  *.*) : ;;
-  *) die "Domain '${NEW_DOMAIN}' does not look valid (expected something like ai.example.com)." ;;
-esac
+# Authenticate kcadm against the master realm using the bootstrap admin.
+cd_kcadm_login() {
+  local user pass
+  user="$(get_env KC_BOOTSTRAP_ADMIN_USERNAME)"
+  pass="$(get_env KC_BOOTSTRAP_ADMIN_PASSWORD)"
+  dc exec -T keycloak /opt/keycloak/bin/kcadm.sh config credentials \
+    --server http://localhost:8080 --realm master \
+    --user "${user}" --password "${pass}" >/dev/null
+}
 
-if [ "${NEW_DOMAIN}" = "${OLD_DOMAIN}" ]; then
-  warn "New domain equals the current domain (${OLD_DOMAIN}); nothing to change."
-  exit 0
-fi
-
-heading "Change domain: ${OLD_DOMAIN:-unset} -> ${NEW_DOMAIN}"
-cat <<EOF
-This will:
-  - update BASE_DOMAIN and the chat/auth/flow/trace hostnames in .env
-  - re-render the Keycloak realm template
-  - update the live Keycloak clients (redirect URIs, web origins, root URLs)
-  - recreate keycloak, oauth2-proxy, librechat, langfuse-web/worker, langflow/worker
-  - re-issue TLS certificates for the new subdomains$([ "${SKIP_SSL}" -eq 1 ] && echo " (SKIPPED)")
-
-New URLs will be:
-  chat.${NEW_DOMAIN}  auth.${NEW_DOMAIN}  flow.${NEW_DOMAIN}  trace.${NEW_DOMAIN}
-
-Make sure DNS A/AAAA records for those names point at this host.
-EOF
-
-if [ "${ASSUME_YES}" -ne 1 ]; then
-  read -r -p "Proceed? Type 'yes' to continue: " confirm
-  [ "${confirm}" = "yes" ] || die "Aborted."
-fi
-
-# --- 1. Update .env ----------------------------------------------------------
-log "Updating .env..."
-set_env BASE_DOMAIN "${NEW_DOMAIN}"
-set_env CHAT_HOST  "chat.${NEW_DOMAIN}"
-set_env AUTH_HOST  "auth.${NEW_DOMAIN}"
-set_env FLOW_HOST  "flow.${NEW_DOMAIN}"
-set_env TRACE_HOST "trace.${NEW_DOMAIN}"
-chmod 600 "${ENV_FILE}"
-
-# --- 2. Re-render the realm template (keeps the on-disk source in sync) -------
-render_realm
-
-# --- 3. Recreate Keycloak first so KC_HOSTNAME reflects the new auth host -----
-log "Recreating Keycloak with the new hostname..."
-dc up -d keycloak
-wait_for_service keycloak 360
-
-# --- 4. Update the live Keycloak clients via kcadm (non-destructive) ----------
-KC_ADMIN_USER="$(get_env KC_BOOTSTRAP_ADMIN_USERNAME)"
-KC_ADMIN_PASS="$(get_env KC_BOOTSTRAP_ADMIN_PASSWORD)"
-KCADM="/opt/keycloak/bin/kcadm.sh"
-
-log "Authenticating to Keycloak admin API..."
-dc exec -T keycloak "${KCADM}" config credentials \
-  --server http://localhost:8080 --realm master \
-  --user "${KC_ADMIN_USER}" --password "${KC_ADMIN_PASS}" >/dev/null
-
-# Update one client's URLs. Args: <clientId> <host> <callback-path>
-update_client() {
-  local client_id="$1" host="$2" callback="$3" cid
-  cid="$(dc exec -T keycloak "${KCADM}" get clients -r "${REALM}" \
+# Update one Keycloak client's URLs in place. Args: <clientId> <host> <callback>
+cd_update_client() {
+  local client_id="$1" host="$2" callback="$3" realm cid
+  realm="$(get_env KEYCLOAK_REALM || echo AIPlatform)"
+  cid="$(dc exec -T keycloak /opt/keycloak/bin/kcadm.sh get clients -r "${realm}" \
           -q "clientId=${client_id}" --fields id --format csv --noquotes 2>/dev/null \
         | tr -d '\r' | head -n1)"
   if [ -z "${cid}" ]; then
-    warn "Client '${client_id}' not found in realm ${REALM}; skipping."
+    warn "Client '${client_id}' not found in realm ${realm}; skipping."
     return 0
   fi
-  dc exec -T keycloak "${KCADM}" update "clients/${cid}" -r "${REALM}" \
+  dc exec -T keycloak /opt/keycloak/bin/kcadm.sh update "clients/${cid}" -r "${realm}" \
     -s "rootUrl=https://${host}" \
     -s "baseUrl=https://${host}" \
     -s "redirectUris=[\"https://${host}${callback}\"]" \
@@ -119,36 +85,107 @@ update_client() {
   success "Updated Keycloak client '${client_id}' -> https://${host}"
 }
 
-log "Updating Keycloak client redirect URIs..."
-update_client librechat "chat.${NEW_DOMAIN}"  "/oauth/openid/callback"
-update_client langflow  "flow.${NEW_DOMAIN}"  "/oauth2/callback"
-update_client langfuse  "trace.${NEW_DOMAIN}" "/api/auth/callback/keycloak"
+# Update all three OIDC clients for the new domain. Args: <new>
+cd_update_all_clients() {
+  local new="$1"
+  cd_update_client librechat "chat.${new}"  "/oauth/openid/callback"
+  cd_update_client langflow  "flow.${new}"  "/oauth2/callback"
+  cd_update_client langfuse  "trace.${new}" "/api/auth/callback/keycloak"
+}
 
-# --- 5. Recreate the services that embed the hostname ------------------------
-log "Recreating dependent services with the new domain..."
-dc up -d oauth2-proxy librechat langfuse-web langfuse-worker langflow langflow-worker
+# Recreate the services that bake in the hostname so they re-read .env.
+cd_recreate_services() {
+  dc up -d "${CD_SERVICES[@]}"
+}
 
-# --- 6. Re-issue TLS certificates -------------------------------------------
-if [ "${SKIP_SSL}" -eq 0 ]; then
-  heading "Re-issuing TLS certificates for *.${NEW_DOMAIN}"
-  bash "${SCRIPT_DIR}/issue-certs.sh" || warn "Certificate issuance returned non-zero (continuing)."
-else
-  warn "Skipping TLS re-issuance (--skip-ssl). Run scripts/issue-certs.sh when DNS is ready."
-fi
+cd_main() {
+  require_root
+  require_cmd envsubst
+  [ -f "${ENV_FILE}" ] || die ".env not found — run ./install.sh first."
 
-# --- 7. Health check ---------------------------------------------------------
-heading "Verifying"
-bash "${SCRIPT_DIR}/healthcheck.sh" || warn "Some health checks did not pass; review with 'make ps' / 'make logs'."
+  local new_domain="" skip_ssl=0 assume_yes=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --domain) new_domain="$2"; shift 2 ;;
+      --skip-ssl) skip_ssl=1; shift ;;
+      --yes|-y) assume_yes=1; shift ;;
+      -h|--help) sed -n '2,21p' "$0"; exit 0 ;;
+      *) die "Unknown argument: $1" ;;
+    esac
+  done
 
-heading "Domain changed to ${NEW_DOMAIN}"
-cat <<EOF
+  local old_domain; old_domain="$(get_env BASE_DOMAIN || echo "")"
+
+  if [ -z "${new_domain}" ]; then
+    [ -t 0 ] || die "No --domain given and not interactive."
+    read -r -p "New base domain (current: ${old_domain:-unset}): " new_domain
+  fi
+
+  local vrc=0
+  cd_validate_domain "${new_domain}" "${old_domain}" || vrc=$?
+  [ "${vrc}" -eq 2 ] && exit 0       # no-op (same domain)
+  [ "${vrc}" -ne 0 ] && die "Invalid domain."
+
+  heading "Change domain: ${old_domain:-unset} -> ${new_domain}"
+  cat <<EOF
+This will:
+  - update BASE_DOMAIN and the chat/auth/flow/trace hostnames in .env
+  - re-render the Keycloak realm template
+  - update the live Keycloak clients (redirect URIs, web origins, root URLs)
+  - recreate: ${CD_SERVICES[*]}
+  - re-issue TLS certificates for the new subdomains$([ "${skip_ssl}" -eq 1 ] && echo " (SKIPPED)")
+
+New URLs: chat/auth/flow/trace.${new_domain}
+Make sure DNS A/AAAA records for those names point at this host.
+EOF
+
+  if [ "${assume_yes}" -ne 1 ]; then
+    read -r -p "Proceed? Type 'yes' to continue: " confirm
+    [ "${confirm}" = "yes" ] || die "Aborted."
+  fi
+
+  log "Updating .env..."
+  cd_update_env "${new_domain}"
+
+  render_realm
+
+  log "Recreating Keycloak with the new hostname..."
+  dc up -d keycloak
+  wait_for_service keycloak 360
+
+  log "Authenticating to Keycloak admin API..."
+  cd_kcadm_login
+  log "Updating Keycloak client redirect URIs..."
+  cd_update_all_clients "${new_domain}"
+
+  log "Recreating dependent services with the new domain..."
+  cd_recreate_services
+
+  if [ "${skip_ssl}" -eq 0 ]; then
+    heading "Re-issuing TLS certificates for *.${new_domain}"
+    bash "${SCRIPT_DIR}/issue-certs.sh" || warn "Certificate issuance returned non-zero (continuing)."
+  else
+    warn "Skipping TLS re-issuance (--skip-ssl). Run scripts/issue-certs.sh when DNS is ready."
+  fi
+
+  heading "Verifying"
+  bash "${SCRIPT_DIR}/healthcheck.sh" || warn "Some health checks did not pass; review with 'make ps'."
+
+  heading "Domain changed to ${new_domain}"
+  cat <<EOF
 
   New access URLs:
-    Chat     : https://chat.${NEW_DOMAIN}
-    Identity : https://auth.${NEW_DOMAIN}
-    Flows    : https://flow.${NEW_DOMAIN}
-    Tracing  : https://trace.${NEW_DOMAIN}
+    Chat     : https://chat.${new_domain}
+    Identity : https://auth.${new_domain}
+    Flows    : https://flow.${new_domain}
+    Tracing  : https://trace.${new_domain}
 
   If you skipped SSL or DNS wasn't ready, run:  sudo ./scripts/issue-certs.sh
 EOF
-success "Done."
+  success "Done."
+}
+
+# Only run main when executed directly (not when sourced by the self-test).
+if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
+  cd_main "$@"
+fi

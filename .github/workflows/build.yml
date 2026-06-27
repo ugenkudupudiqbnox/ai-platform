@@ -16,8 +16,19 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y shellcheck
       - name: Lint shell scripts
         run: |
-          shellcheck install.sh upgrade.sh uninstall.sh healthcheck.sh scripts/*.sh \
+          shellcheck -x --source-path=SCRIPTDIR \
+            install.sh upgrade.sh uninstall.sh healthcheck.sh scripts/*.sh \
             docker/postgres/init/*.sh docker/langflow/*.sh
+
+  self-test:
+    name: Self-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq gettext-base
+      - name: Run change-domain self-test
+        run: bash scripts/change-domain.selftest.sh
 
   lint-yaml:
     name: yamllint

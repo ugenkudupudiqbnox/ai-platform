@@ -9,7 +9,7 @@ DC := docker compose --env-file $(ENV_FILE)
 
 .PHONY: help install upgrade uninstall up down restart ps logs health \
         backup restore build pull reload-nginx issue-certs change-domain \
-        monitoring-up monitoring-down scale-workers config validate
+        monitoring-up monitoring-down scale-workers config validate test
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -77,4 +77,7 @@ config: ## Render and validate the merged compose config
 
 validate: ## Validate compose, shell scripts and YAML locally
 	$(DC) config -q && echo "compose: OK"
-	@command -v shellcheck >/dev/null && shellcheck install.sh upgrade.sh uninstall.sh healthcheck.sh scripts/*.sh || echo "shellcheck not installed (skipped)"
+	@command -v shellcheck >/dev/null && shellcheck -x --source-path=SCRIPTDIR install.sh upgrade.sh uninstall.sh healthcheck.sh scripts/*.sh || echo "shellcheck not installed (skipped)"
+
+test: ## Run offline self-tests (no Docker required)
+	bash scripts/change-domain.selftest.sh

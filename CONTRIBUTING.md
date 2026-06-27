@@ -64,7 +64,20 @@ yamllint -d "{extends: relaxed, rules: {line-length: disable}}" \
 
 # JSON (render the realm template first, then validate)
 jq empty monitoring/grafana/provisioning/dashboards/platform-overview.json
+
+# Offline self-tests (no Docker required)
+make test          # runs scripts/*.selftest.sh
 ```
+
+### Self-tests
+
+Logic that can be exercised without a running stack has an offline self-test
+(e.g. `scripts/change-domain.selftest.sh`, run via `make test` and in CI). It
+sources the target script — whose `main` is guarded by
+`[ "${BASH_SOURCE[0]}" = "$0" ]` so functions can be tested in isolation — mocks
+`dc`/`docker` and helpers, and asserts the pure logic against a throwaway `.env`
+and `REPO_ROOT`. When adding non-trivial script logic, follow this pattern:
+factor it into functions, guard `main`, and add assertions.
 
 > No `.env`? `cp .env.example .env && sed -i 's/__GENERATED__/placeholder/g' .env`
 > for validation only — never commit a populated `.env`.
