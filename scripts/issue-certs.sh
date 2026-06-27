@@ -30,6 +30,23 @@ fi
 
 log "Requesting certificate for chat/auth/flow/trace.${BASE_DOMAIN}..."
 
+# The self-signed bootstrap cert occupies /etc/letsencrypt/live/aiplatform/,
+# which is NOT a certbot-managed lineage (its files are regular files, whereas a
+# real certbot lineage uses symlinks into ../../archive/). If left in place,
+# certbot creates the real cert under 'aiplatform-0001' and NGINX (which points
+# at .../aiplatform) keeps serving the self-signed one. Detect the dummy by the
+# non-symlink fullchain.pem and clear the stale lineage so certbot can own the
+# canonical name. Real lineages (symlinked) are left untouched, so renewals are
+# unaffected.
+dc run --rm --entrypoint sh certbot -c '
+  f=/etc/letsencrypt/live/aiplatform/fullchain.pem
+  if [ -e "$f" ] && [ ! -L "$f" ]; then
+    rm -rf /etc/letsencrypt/live/aiplatform \
+           /etc/letsencrypt/archive/aiplatform \
+           /etc/letsencrypt/renewal/aiplatform.conf
+  fi
+' >/dev/null 2>&1 || true
+
 if dc run --rm certbot certonly \
       --webroot --webroot-path /var/www/certbot \
       --cert-name aiplatform \
