@@ -9,7 +9,7 @@ DC := docker compose --env-file $(ENV_FILE)
 
 .PHONY: help install upgrade uninstall up down restart ps logs health \
         backup restore build pull reload-nginx issue-certs change-domain \
-        monitoring-up monitoring-down scale-workers config validate test
+        monitoring-up monitoring-down scale-workers config validate test self-test
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -79,7 +79,21 @@ validate: ## Validate compose, shell scripts and YAML locally
 	$(DC) config -q && echo "compose: OK"
 	@command -v shellcheck >/dev/null && shellcheck -x --source-path=SCRIPTDIR install.sh upgrade.sh uninstall.sh healthcheck.sh scripts/*.sh || echo "shellcheck not installed (skipped)"
 
-test: ## Run offline self-tests (no Docker required)
-	@rc=0; for t in scripts/*.selftest.sh; do \
-		echo "== $$t =="; bash "$$t" || rc=1; \
-	done; exit $$rc
+test: ## Run all offline self-tests (no Docker required) with a summary
+	@rc=0; suites=0; total=0; \
+	for t in scripts/*.selftest.sh; do \
+		suites=$$((suites+1)); \
+		out=$$(bash "$$t" 2>&1); \
+		n=$$(printf '%s\n' "$$out" | grep -oE '[0-9]+ passed' | grep -oE '[0-9]+'); \
+		if printf '%s\n' "$$out" | grep -q '0 failed'; then \
+			total=$$((total+n)); printf '  \033[32mPASS\033[0m %-32s %s checks\n' "$$(basename $$t)" "$$n"; \
+		else \
+			rc=1; printf '  \033[31mFAIL\033[0m %s\n' "$$(basename $$t)"; printf '%s\n' "$$out" | tail -n 20; \
+		fi; \
+	done; \
+	echo "---"; \
+	if [ $$rc -eq 0 ]; then printf '\033[32mAll %s self-tests passed (%s checks)\033[0m\n' "$$suites" "$$total"; \
+	else printf '\033[31mSelf-tests FAILED\033[0m\n'; fi; \
+	exit $$rc
+
+self-test: test ## Alias for `make test`
