@@ -1,5 +1,6 @@
 # Enterprise AI Platform
 
+[![build](https://github.com/ugenkudupudiqbnox/ai-platform/actions/workflows/build.yml/badge.svg)](https://github.com/ugenkudupudiqbnox/ai-platform/actions/workflows/build.yml)
 [![Repo](https://img.shields.io/badge/GitHub-ugenkudupudiqbnox%2Fai--platform-181717?logo=github)](https://github.com/ugenkudupudiqbnox/ai-platform)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
