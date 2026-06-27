@@ -80,4 +80,6 @@ validate: ## Validate compose, shell scripts and YAML locally
 	@command -v shellcheck >/dev/null && shellcheck -x --source-path=SCRIPTDIR install.sh upgrade.sh uninstall.sh healthcheck.sh scripts/*.sh || echo "shellcheck not installed (skipped)"
 
 test: ## Run offline self-tests (no Docker required)
-	bash scripts/change-domain.selftest.sh
+	@rc=0; for t in scripts/*.selftest.sh; do \
+		echo "== $$t =="; bash "$$t" || rc=1; \
+	done; exit $$rc
