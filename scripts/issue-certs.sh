@@ -38,6 +38,9 @@ log "Requesting certificate for chat/auth/flow/trace.${BASE_DOMAIN}..."
 # non-symlink fullchain.pem and clear the stale lineage so certbot can own the
 # canonical name. Real lineages (symlinked) are left untouched, so renewals are
 # unaffected.
+# The body runs INSIDE the certbot container; $f must expand there, not on the
+# host, so single quotes are intentional.
+# shellcheck disable=SC2016
 dc run --rm --entrypoint sh certbot -c '
   f=/etc/letsencrypt/live/aiplatform/fullchain.pem
   if [ -e "$f" ] && [ ! -L "$f" ]; then
