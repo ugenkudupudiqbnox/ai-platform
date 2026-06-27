@@ -18,7 +18,7 @@ heading "Upgrading the Enterprise AI Platform"
 # Optional pre-upgrade backup (recommended).
 if [ "${SKIP_BACKUP:-0}" != "1" ]; then
   log "Taking a pre-upgrade backup (set SKIP_BACKUP=1 to skip)..."
-  bash "${SCRIPT_DIR}/scripts/backup.sh" || warn "Backup failed; continuing with upgrade."
+  bash "${REPO_ROOT}/scripts/backup.sh" || warn "Backup failed; continuing with upgrade."
 fi
 
 # Re-render config in case templates changed.
@@ -49,6 +49,6 @@ log "Pruning dangling images..."
 docker image prune -f >/dev/null 2>&1 || true
 
 heading "Running post-upgrade health check"
-bash "${SCRIPT_DIR}/healthcheck.sh" || warn "Health check reported issues."
+bash "${REPO_ROOT}/healthcheck.sh" || warn "Health check reported issues."
 
 success "Upgrade complete."

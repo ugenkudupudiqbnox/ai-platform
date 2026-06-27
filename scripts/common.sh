@@ -4,8 +4,10 @@
 # =============================================================================
 
 # Resolve the repository root (parent of this scripts/ directory).
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# Private to common.sh — do NOT name this SCRIPT_DIR, or it would clobber the
+# SCRIPT_DIR that sourcing scripts set to their own location.
+COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${COMMON_DIR}/.." && pwd)"
 ENV_FILE="${ENV_FILE:-${REPO_ROOT}/.env}"
 # Used by gen-secrets.sh (sourcing script).
 # shellcheck disable=SC2034

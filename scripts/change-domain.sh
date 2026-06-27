@@ -163,13 +163,13 @@ EOF
 
   if [ "${skip_ssl}" -eq 0 ]; then
     heading "Re-issuing TLS certificates for *.${new_domain}"
-    bash "${SCRIPT_DIR}/issue-certs.sh" || warn "Certificate issuance returned non-zero (continuing)."
+    bash "${REPO_ROOT}/scripts/issue-certs.sh" || warn "Certificate issuance returned non-zero (continuing)."
   else
     warn "Skipping TLS re-issuance (--skip-ssl). Run scripts/issue-certs.sh when DNS is ready."
   fi
 
   heading "Verifying"
-  bash "${SCRIPT_DIR}/healthcheck.sh" || warn "Some health checks did not pass; review with 'make ps'."
+  bash "${REPO_ROOT}/healthcheck.sh" || warn "Some health checks did not pass; review with 'make ps'."
 
   heading "Domain changed to ${new_domain}"
   cat <<EOF

@@ -109,9 +109,9 @@ fi
 # --- 4. Generate .env + secrets ----------------------------------------------
 heading "Step 1/9 — Generating configuration and secrets"
 if [ "${FORCE_SECRETS}" -eq 1 ]; then
-  bash "${SCRIPT_DIR}/scripts/gen-secrets.sh" --force
+  bash "${REPO_ROOT}/scripts/gen-secrets.sh" --force
 else
-  bash "${SCRIPT_DIR}/scripts/gen-secrets.sh"
+  bash "${REPO_ROOT}/scripts/gen-secrets.sh"
 fi
 
 # Persist domain/email and derive per-service hostnames.
@@ -163,7 +163,7 @@ wait_for_service keycloak 360
 heading "Step 6/9 — Starting Langfuse (migrations + API keys)"
 dc up -d langfuse-web langfuse-worker
 wait_for_service langfuse-web 360
-bash "${SCRIPT_DIR}/scripts/langfuse-keys.sh"
+bash "${REPO_ROOT}/scripts/langfuse-keys.sh"
 
 # --- 11. LangFlow + LibreChat + edge auth ------------------------------------
 heading "Step 7/9 — Starting LangFlow, LibreChat and edge auth"
@@ -173,12 +173,12 @@ wait_for_service librechat 240
 
 # --- 12. TLS bootstrap + NGINX ----------------------------------------------
 heading "Step 8/9 — Bootstrapping TLS and starting NGINX"
-bash "${SCRIPT_DIR}/scripts/bootstrap-certs.sh"
+bash "${REPO_ROOT}/scripts/bootstrap-certs.sh"
 dc up -d nginx
 wait_for_service nginx 120
 
 if [ "${SKIP_SSL}" -eq 0 ]; then
-  bash "${SCRIPT_DIR}/scripts/issue-certs.sh" || warn "SSL issuance step returned non-zero (continuing)."
+  bash "${REPO_ROOT}/scripts/issue-certs.sh" || warn "SSL issuance step returned non-zero (continuing)."
 else
   warn "Skipping Let's Encrypt issuance (--skip-ssl); using self-signed certs."
 fi
@@ -188,7 +188,11 @@ install_timers() {
   command -v systemctl >/dev/null 2>&1 || { warn "systemd not found; skipping timers."; return 0; }
   log "Installing systemd timers for certificate renewal and daily backups..."
 
-  cat > /etc/systemd/system/aiplatform-certbot-renew.service <<EOF
+  # Unit directory (overridable for testing).
+  local sd="${SYSTEMD_DIR:-/etc/systemd/system}"
+  mkdir -p "${sd}"
+
+  cat > "${sd}"/aiplatform-certbot-renew.service <<EOF
 [Unit]
 Description=AI Platform — renew Let's Encrypt certificates
 After=docker.service
@@ -201,7 +205,7 @@ ExecStart=/usr/bin/docker compose --env-file ${ENV_FILE} run --rm certbot renew 
 ExecStartPost=/usr/bin/docker compose --env-file ${ENV_FILE} exec -T nginx nginx -s reload
 EOF
 
-  cat > /etc/systemd/system/aiplatform-certbot-renew.timer <<EOF
+  cat > "${sd}"/aiplatform-certbot-renew.timer <<EOF
 [Unit]
 Description=AI Platform — daily certificate renewal
 
@@ -214,7 +218,7 @@ Persistent=true
 WantedBy=timers.target
 EOF
 
-  cat > /etc/systemd/system/aiplatform-backup.service <<EOF
+  cat > "${sd}"/aiplatform-backup.service <<EOF
 [Unit]
 Description=AI Platform — full backup
 After=docker.service
@@ -226,7 +230,7 @@ WorkingDirectory=${REPO_ROOT}
 ExecStart=${REPO_ROOT}/scripts/backup.sh
 EOF
 
-  cat > /etc/systemd/system/aiplatform-backup.timer <<EOF
+  cat > "${sd}"/aiplatform-backup.timer <<EOF
 [Unit]
 Description=AI Platform — daily backup
 
@@ -248,7 +252,7 @@ install_timers
 
 # --- 14. Health check --------------------------------------------------------
 heading "Step 9/9 — Running health checks"
-bash "${SCRIPT_DIR}/healthcheck.sh" || warn "Some health checks did not pass; review with 'make ps' / 'make logs'."
+bash "${REPO_ROOT}/healthcheck.sh" || warn "Some health checks did not pass; review with 'make ps' / 'make logs'."
 
 # --- 15. Summary -------------------------------------------------------------
 print_summary() {
