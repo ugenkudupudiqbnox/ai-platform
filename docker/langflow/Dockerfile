@@ -3,7 +3,7 @@
 # Wraps the upstream LangFlow image with a dispatching entrypoint that runs
 # either the gunicorn web tier ("web") or a Celery worker ("worker").
 # =============================================================================
-ARG LANGFLOW_IMAGE=langflowai/langflow:1.1.1
+ARG LANGFLOW_IMAGE=langflowai/langflow:1.10.1
 
 FROM ${LANGFLOW_IMAGE}
 
