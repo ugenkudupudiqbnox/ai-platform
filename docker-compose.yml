@@ -211,7 +211,7 @@ services:
     volumes:
       - ./docker/keycloak/realm.json:/opt/keycloak/data/import/realm.json:ro
       - keycloak_data:/opt/keycloak/data
-    networks: [backend]
+    networks: [backend, edge]
     depends_on:
       postgres:
         condition: service_healthy
@@ -252,7 +252,7 @@ services:
       LANGFLOW_LOG_LEVEL: ${LANGFLOW_LOG_LEVEL}
       LANGFLOW_PROMETHEUS_ENABLED: "true"
       LANGFLOW_PROMETHEUS_PORT: "9090"
-      LANGFLOW_CACHE_TYPE: redis
+      LANGFLOW_CACHE_TYPE: memory
       LANGFLOW_REDIS_HOST: ${REDIS_HOST}
       LANGFLOW_REDIS_PORT: ${REDIS_PORT}
       LANGFLOW_REDIS_DB: ${REDIS_DB_LANGFLOW_BACKEND}
@@ -297,7 +297,7 @@ services:
       LANGFLOW_CONFIG_DIR: /var/lib/langflow
       LANGFLOW_SECRET_KEY: ${LANGFLOW_SECRET_KEY}
       LANGFLOW_LOG_LEVEL: ${LANGFLOW_LOG_LEVEL}
-      LANGFLOW_CACHE_TYPE: redis
+      LANGFLOW_CACHE_TYPE: memory
       LANGFLOW_REDIS_HOST: ${REDIS_HOST}
       LANGFLOW_REDIS_PORT: ${REDIS_PORT}
       LANGFLOW_REDIS_DB: ${REDIS_DB_LANGFLOW_BACKEND}
@@ -450,15 +450,9 @@ services:
         condition: service_healthy
       minio-init:
         condition: service_completed_successfully
-    healthcheck:
-      test:
-        - CMD-SHELL
-        - >-
-          node -e "require('http').get('http://localhost:3030/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
-      interval: 30s
-      timeout: 10s
-      retries: 10
-      start_period: 60s
+    # NOTE: the Langfuse worker (v3) does not expose an HTTP health server, so no
+    # container healthcheck is defined; liveness is handled by `restart` and
+    # nothing depends on its health.
 
   # ---------------------------------------------------------------------------
   # LibreChat (chat UI)
@@ -543,6 +537,15 @@ services:
       OAUTH2_PROXY_REDIRECT_URL: https://${FLOW_HOST}/oauth2/callback
       OAUTH2_PROXY_COOKIE_DOMAINS: .${BASE_DOMAIN}
       OAUTH2_PROXY_WHITELIST_DOMAINS: .${BASE_DOMAIN}
+      # Discover OIDC endpoints via the INTERNAL Keycloak so oauth2-proxy doesn't
+      # depend on public DNS/TLS/NGINX being up at startup (avoids a startup
+      # deadlock). The browser-facing login URL stays public; token redeem and
+      # JWKS happen server-side over the backend network. The issuer claim is
+      # still validated against the public issuer URL above.
+      OAUTH2_PROXY_SKIP_OIDC_DISCOVERY: "true"
+      OAUTH2_PROXY_LOGIN_URL: https://${AUTH_HOST}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/auth
+      OAUTH2_PROXY_REDEEM_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token
+      OAUTH2_PROXY_OIDC_JWKS_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM}/protocol/openid-connect/certs
     volumes:
       - ./docker/nginx/oauth2-proxy/oauth2-proxy.cfg:/etc/oauth2-proxy/oauth2-proxy.cfg:ro
     networks: [backend, edge]

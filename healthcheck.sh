@@ -15,9 +15,12 @@ source "${SCRIPT_DIR}/scripts/common.sh"
 
 RC=0
 
+# Services with a container healthcheck (or whose running state we require).
+# langfuse-worker and oauth2-proxy have no HTTP healthcheck; langflow-worker is
+# optional (disabled on LangFlow versions without a Celery app), so they are not
+# treated as required-healthy here.
 REQUIRED_SERVICES=(postgres redis mongo clickhouse minio keycloak \
-  langfuse-web langfuse-worker langflow langflow-worker flower \
-  librechat oauth2-proxy nginx)
+  langfuse-web langflow flower librechat nginx)
 
 heading "Container status"
 for svc in "${REQUIRED_SERVICES[@]}"; do

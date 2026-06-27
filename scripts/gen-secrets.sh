@@ -85,8 +85,10 @@ ensure LANGFUSE_INIT_PROJECT_PUBLIC_KEY gen_pk
 ensure LANGFUSE_INIT_PROJECT_SECRET_KEY gen_sk
 
 # --- oauth2-proxy ------------------------------------------------------------
-# Cookie secret must base64-decode to exactly 16/24/32 bytes.
-ensure OAUTH2_PROXY_COOKIE_SECRET     rand_b64 32
+# Cookie secret must be a string of exactly 16, 24 or 32 bytes (oauth2-proxy
+# uses it directly as an AES key; it does NOT base64-decode it). 32 hex chars
+# = 32 bytes.
+ensure OAUTH2_PROXY_COOKIE_SECRET     rand_hex 16
 
 # --- Monitoring --------------------------------------------------------------
 ensure GRAFANA_ADMIN_PASSWORD         rand_b64url 18

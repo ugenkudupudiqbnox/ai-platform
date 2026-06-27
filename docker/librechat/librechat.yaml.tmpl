@@ -27,23 +27,12 @@ rateLimits:
 
 endpoints:
   # ---------------------------------------------------------------------------
-  # Azure OpenAI — configured from environment variables.
-  # ---------------------------------------------------------------------------
-  azureOpenAI:
-    titleModel: "gpt-4o-mini"
-    plugins: true
-    groups:
-      - group: "azure-openai"
-        apiKey: "${AZURE_OPENAI_API_KEY}"
-        instanceName: "${AZURE_OPENAI_INSTANCE_NAME}"
-        version: "${AZURE_OPENAI_API_VERSION}"
-        models:
-          "${AZURE_OPENAI_DEPLOYMENT_NAME}":
-            deploymentName: "${AZURE_OPENAI_DEPLOYMENT_NAME}"
-
-  # ---------------------------------------------------------------------------
-  # Custom OpenAI-compatible endpoints (Ollama).
   # OpenAI, Anthropic and Google are auto-enabled from their *_API_KEY env vars.
+  # Azure OpenAI is intentionally omitted here: LibreChat fails to start if an
+  # azureOpenAI block references env vars that are empty. To enable Azure, add an
+  # `azureOpenAI:` block here once AZURE_OPENAI_* are set in .env.
+  #
+  # Custom OpenAI-compatible endpoints (Ollama):
   # ---------------------------------------------------------------------------
   custom:
     - name: "Ollama"
@@ -73,12 +62,6 @@ fileConfig:
 
 # Interface tweaks.
 interface:
-  privacyPolicy:
-    externalUrl: "https://${CHAT_HOST}/privacy"
-    openNewTab: true
-  termsOfService:
-    externalUrl: "https://${CHAT_HOST}/terms"
-    openNewTab: true
   endpointsMenu: true
   modelSelect: true
   parameters: true

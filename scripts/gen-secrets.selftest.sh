@@ -62,11 +62,12 @@ assert_match LANGFUSE_ENCRYPTION_KEY '^[0-9a-f]{64}$' "LANGFUSE_ENCRYPTION_KEY i
 assert_match LANGFUSE_INIT_PROJECT_PUBLIC_KEY '^pk-lf-' "Langfuse public key has pk-lf- prefix"
 assert_match LANGFUSE_INIT_PROJECT_SECRET_KEY '^sk-lf-' "Langfuse secret key has sk-lf- prefix"
 
-# oauth2-proxy cookie secret must base64-decode to 16/24/32 bytes.
-COOKIE_BYTES="$(get_env OAUTH2_PROXY_COOKIE_SECRET | tr -d '\n' | base64 -d 2>/dev/null | wc -c | tr -d ' ')"
-case "${COOKIE_BYTES}" in
-  16|24|32) ok "oauth2-proxy cookie secret decodes to ${COOKIE_BYTES} bytes" ;;
-  *) bad "oauth2-proxy cookie secret decodes to ${COOKIE_BYTES} bytes (want 16/24/32)" ;;
+# oauth2-proxy uses the cookie secret directly as an AES key, so the raw string
+# length must be exactly 16, 24 or 32 bytes (it does NOT base64-decode it).
+COOKIE_LEN="$(get_env OAUTH2_PROXY_COOKIE_SECRET | tr -d '\n' | wc -c | tr -d ' ')"
+case "${COOKIE_LEN}" in
+  16|24|32) ok "oauth2-proxy cookie secret is ${COOKIE_LEN} bytes" ;;
+  *) bad "oauth2-proxy cookie secret is ${COOKIE_LEN} bytes (want 16/24/32)" ;;
 esac
 
 # --- 3. Mirrored secrets (single source of truth) ----------------------------
