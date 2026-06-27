@@ -179,6 +179,12 @@ wait_for_service nginx 120
 
 if [ "${SKIP_SSL}" -eq 0 ]; then
   bash "${REPO_ROOT}/scripts/issue-certs.sh" || warn "SSL issuance step returned non-zero (continuing)."
+  # LibreChat performs OIDC discovery against https://auth.<domain> once at
+  # startup. It booted before the real certificate existed (it would have hit the
+  # self-signed bootstrap cert and disabled the 'openid' strategy), so restart it
+  # now to re-run discovery against the issued certificate.
+  log "Restarting LibreChat so OIDC discovery uses the issued certificate..."
+  dc restart librechat >/dev/null 2>&1 || true
 else
   warn "Skipping Let's Encrypt issuance (--skip-ssl); using self-signed certs."
 fi

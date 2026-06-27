@@ -164,6 +164,10 @@ EOF
   if [ "${skip_ssl}" -eq 0 ]; then
     heading "Re-issuing TLS certificates for *.${new_domain}"
     bash "${REPO_ROOT}/scripts/issue-certs.sh" || warn "Certificate issuance returned non-zero (continuing)."
+    # LibreChat does OIDC discovery against https://auth.<domain> at startup;
+    # restart it so it picks up the new domain's issued certificate.
+    log "Restarting LibreChat so OIDC discovery uses the new certificate..."
+    dc restart librechat >/dev/null 2>&1 || true
   else
     warn "Skipping TLS re-issuance (--skip-ssl). Run scripts/issue-certs.sh when DNS is ready."
   fi
