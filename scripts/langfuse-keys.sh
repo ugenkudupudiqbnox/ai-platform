@@ -15,8 +15,10 @@ source "${SCRIPT_DIR}/common.sh"
 
 heading "Configuring Langfuse API keys for LangFlow tracing"
 
-PUBLIC_KEY="$(get_env LANGFUSE_INIT_PROJECT_PUBLIC_KEY)"
-SECRET_KEY="$(get_env LANGFUSE_INIT_PROJECT_SECRET_KEY)"
+# `|| true` so a missing key yields an empty value and reaches the friendly
+# die() below, rather than aborting via `set -e` at the assignment.
+PUBLIC_KEY="$(get_env LANGFUSE_INIT_PROJECT_PUBLIC_KEY || true)"
+SECRET_KEY="$(get_env LANGFUSE_INIT_PROJECT_SECRET_KEY || true)"
 
 [ -n "${PUBLIC_KEY}" ] || die "LANGFUSE_INIT_PROJECT_PUBLIC_KEY is empty (run gen-secrets.sh)."
 [ -n "${SECRET_KEY}" ] || die "LANGFUSE_INIT_PROJECT_SECRET_KEY is empty (run gen-secrets.sh)."
