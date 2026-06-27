@@ -98,6 +98,27 @@ cd_recreate_services() {
   dc up -d "${CD_SERVICES[@]}"
 }
 
+# Re-point existing LibreChat OIDC accounts at the new issuer URL. LibreChat
+# stores openidIssuer per user and rejects logins when it changes ("stored
+# openidIssuer does not match token issuer" -> "Authentication failed"), so a
+# domain change would otherwise lock out existing SSO users. The Keycloak
+# subject (openidId) is unchanged, so accounts and history are preserved.
+cd_migrate_librechat_issuer() {
+  local realm auth_host new_iss muser mpass db
+  realm="$(get_env KEYCLOAK_REALM || echo AIPlatform)"
+  auth_host="$(get_env AUTH_HOST)"
+  new_iss="https://${auth_host}/realms/${realm}"
+  muser="$(get_env MONGO_INITDB_ROOT_USERNAME)"
+  mpass="$(get_env MONGO_INITDB_ROOT_PASSWORD)"
+  db="$(get_env MONGO_DB_NAME || echo LibreChat)"
+  log "Re-pointing LibreChat OIDC accounts at ${new_iss}..."
+  dc exec -T mongo mongosh -u "${muser}" -p "${mpass}" --authenticationDatabase admin \
+    "${db}" --quiet --eval \
+    "db.users.updateMany({provider:'openid'},{\$set:{openidIssuer:'${new_iss}'}})" \
+    >/dev/null 2>&1 \
+    || warn "Could not update LibreChat OIDC issuer; if SSO login fails, update users.openidIssuer manually."
+}
+
 cd_main() {
   require_root
   require_cmd envsubst
@@ -157,6 +178,9 @@ EOF
   cd_kcadm_login
   log "Updating Keycloak client redirect URIs..."
   cd_update_all_clients "${new_domain}"
+
+  log "Migrating LibreChat OIDC accounts to the new issuer..."
+  cd_migrate_librechat_issuer
 
   log "Recreating dependent services with the new domain..."
   cd_recreate_services

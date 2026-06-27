@@ -41,6 +41,9 @@ CHAT_HOST=chat.old.example.com
 AUTH_HOST=auth.old.example.com
 FLOW_HOST=flow.old.example.com
 TRACE_HOST=trace.old.example.com
+MONGO_INITDB_ROOT_USERNAME=librechat
+MONGO_INITDB_ROOT_PASSWORD=mongopw
+MONGO_DB_NAME=LibreChat
 EOF
 
 # Source the unit-under-test (functions only; main is guarded out).
@@ -134,6 +137,13 @@ assert_grep 'clientId=langfuse'  "${DC_LOG}" "looks up langfuse client"
 assert_grep 'redirectUris=["https://chat.new.example.com/oauth/openid/callback"]'    "${DC_LOG}" "librechat redirect updated via kcadm"
 assert_grep 'redirectUris=["https://flow.new.example.com/oauth2/callback"]'          "${DC_LOG}" "langflow redirect updated via kcadm"
 assert_grep 'redirectUris=["https://trace.new.example.com/api/auth/callback/keycloak"]' "${DC_LOG}" "langfuse redirect updated via kcadm"
+
+# --- 4b. LibreChat OIDC issuer migration -------------------------------------
+echo "[4b] librechat issuer migration"
+: > "${DC_LOG}"
+cd_migrate_librechat_issuer
+assert_grep "mongosh" "${DC_LOG}" "runs a mongo update against LibreChat"
+assert_grep "openidIssuer:'https://auth.new.example.com/realms/AIPlatform'" "${DC_LOG}" "repoints openid users at the new issuer"
 
 # --- 5. Service recreation set -----------------------------------------------
 echo "[5] service recreation"

@@ -89,9 +89,13 @@ This script:
 2. Re-renders the Keycloak realm template.
 3. **Updates the live Keycloak clients in place** (redirect URIs, web origins,
    root URLs) via `kcadm` — no realm wipe, so users and data are preserved.
-4. Recreates the services that embed the hostname (Keycloak, oauth2-proxy,
+4. **Migrates LibreChat OIDC accounts** to the new issuer URL (LibreChat binds
+   each SSO account to the issuer and would otherwise reject logins with
+   "Authentication failed" after the domain changes).
+5. Recreates the services that embed the hostname (Keycloak, oauth2-proxy,
    LibreChat, Langfuse web/worker, LangFlow web/worker).
-5. Re-issues Let's Encrypt certificates for the new subdomains.
+6. Re-issues Let's Encrypt certificates for the new subdomains and restarts
+   LibreChat so its OIDC discovery uses the new certificate.
 
 NGINX itself needs no change — its `server_name` matching is domain-agnostic.
 
