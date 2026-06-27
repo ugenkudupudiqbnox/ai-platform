@@ -1,5 +1,8 @@
 # Enterprise AI Platform
 
+[![Repo](https://img.shields.io/badge/GitHub-ugenkudupudiqbnox%2Fai--platform-181717?logo=github)](https://github.com/ugenkudupudiqbnox/ai-platform)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+
 A production-ready, self-hosted AI platform deployed with Docker Compose on
 **Ubuntu Server 24.04 LTS**. One command — `sudo ./install.sh` — provisions the
 entire stack with generated secrets, automatic database creation, Keycloak SSO,
