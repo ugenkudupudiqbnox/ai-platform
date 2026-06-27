@@ -105,6 +105,12 @@ make upgrade         # pull/rebuild and recreate
 - Public DNS records for the four subdomains (for trusted TLS)
 - Outbound internet access (image pulls, ACME, model providers)
 
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for the
+contributor quick-start, repository layout, local validation steps and coding
+standards.
+
 ## License
 
 Apache License 2.0 — see [LICENSE](LICENSE).
