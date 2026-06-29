@@ -271,6 +271,15 @@ services:
       LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
       LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
       LANGFUSE_HOST: ${LANGFUSE_HOST}
+      # Deactivate LangFlow tracing. LangFlow 1.10.1 attaches a LangfuseCallbackHandler
+      # to every tool when tracing is on; the assistant path then deepcopy/pickles
+      # those tools, which re-calls LangfuseResourceManager.__new__() with no kwargs
+      # -> TypeError "...missing 3 required keyword-only arguments: public_key,
+      # secret_key, base_url" -> flow execution fails. LangFlow only patches this
+      # for the agentic-flow assembly path, not the assistant. Drop this override
+      # (or set "false") once on a LangFlow release that makes the resource manager
+      # picklable / excludes it from the tool deepcopy.
+      LANGFLOW_DEACTIVATE_TRACING: "true"
       DO_NOT_TRACK: "true"
     volumes:
       - langflow_data:/var/lib/langflow
