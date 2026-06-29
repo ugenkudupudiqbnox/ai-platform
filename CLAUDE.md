@@ -1,0 +1,108 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this repo is
+
+A **production self-hosted AI platform** deployed with Docker Compose on Ubuntu
+Server 24.04 LTS. It is **not an application codebase** — there is no
+TS/Python/Go product source here. The repo is **infrastructure-as-code**: a
+`docker-compose.yml` topology plus the bash lifecycle tooling that provisions,
+upgrades, backs up, and re-configures the stack. One command —
+`sudo ./install.sh --domain <d> --email <e>` — provisions the whole thing with
+generated secrets, four service databases, Keycloak SSO, TLS certs, backups
+and monitoring.
+
+The stack (all containers, two networks `edge`/`backend`):
+- **Edge**: `nginx` (TLS/HTTP2/rate-limit) + `oauth2-proxy` (guards LangFlow) + `certbot` (on-demand, `tools` profile)
+- **Apps**: `librechat` (chat UI), `keycloak` (identity/OIDC), `langflow` (gunicorn web) + `langflow-worker` (Celery) + `flower` (queue dashboard), `langfuse-web` + `langfuse-worker` (observability)
+- **Data**: `postgres`, `redis`, `mongo`, `clickhouse`, `minio` + `minio-init` (one-shot bucket creator)
+- **Monitoring**: separate compose overlay `monitoring/docker-compose.monitoring.yml` under the `monitoring` profile (Prometheus/Grafana/OTel)
+
+Public subdomains derive from `BASE_DOMAIN`: `chat.`/`auth.`/`flow.`/`trace.`
+
+## Commands
+
+### Validation (no Docker required) — run before every change
+```bash
+make validate          # compose config -q + shellcheck (if installed)
+make test              # all offline self-tests (scripts/*.selftest.sh) with summary
+make config            # render the merged compose config for inspection
+```
+Full CI battery (mirrors `.github/workflows/build.yml`):
+```bash
+shellcheck -x --source-path=SCRIPTDIR install.sh upgrade.sh uninstall.sh \
+  healthcheck.sh scripts/*.sh docker/postgres/init/*.sh docker/langflow/*.sh
+docker compose --env-file .env config -q
+docker compose -f docker-compose.yml -f monitoring/docker-compose.monitoring.yml config -q
+yamllint -d "{extends: relaxed, rules: {line-length: disable}}" docker-compose.yml monitoring/ .github/
+envsubst < docker/keycloak/realm.json.tmpl | jq empty   # render realm + validate JSON
+jq empty monitoring/grafana/provisioning/dashboards/platform-overview.json
+```
+No real `.env` for validation? `cp .env.example .env && sed -i 's/__GENERATED__/placeholder/g' .env` — never commit a populated `.env`.
+
+### Running a single self-test
+Self-tests are standalone executables that exit non-zero on failure:
+```bash
+bash scripts/change-domain.selftest.sh     # one suite
+```
+
+### Operating a live stack (on a throwaway host — never a box you can't reset)
+```bash
+sudo ./install.sh --domain ai.example.com --email admin@example.com   # full provision
+make ps | make logs S=nginx | make health
+make monitoring-up            # Prometheus + Grafana overlay
+make scale-workers N=4        # scale LangFlow Celery workers
+make upgrade | make uninstall
+sudo ./scripts/change-domain.sh --domain new.example.com   # rebrand post-install
+```
+
+## Architecture & key conventions
+
+### The `.env` system is the single source of truth
+- `.env.example` is the **template** (committed). `scripts/gen-secrets.sh` copies it to `.env` (git-ignored, mode 600) and replaces every `__GENERATED__` placeholder with a random secret. `.env` must never be committed.
+- **All** host/domain/secret/image-tag values flow through `.env` → interpolated by `docker compose --env-file .env`. Nothing host- or secret-specific is hard-coded in `docker-compose.yml`. Image tags are env vars (e.g. `KEYCLOAK_IMAGE`), so version pins live in `.env.example`.
+- Some secrets are **mirrored** to keep a single source of truth: e.g. `OPENID_CLIENT_SECRET` mirrors `KEYCLOAK_CLIENT_SECRET_LIBRECHAT`, `OAUTH2_PROXY_CLIENT_SECRET` mirrors `KEYCLOAK_CLIENT_SECRET_LANGFLOW`, `LANGFUSE_PUBLIC_KEY`/`SECRET_KEY` mirror the Langfuse init project keys, `LANGFLOW_REDIS_QUEUE` embeds `REDIS_PASSWORD`. `gen-secrets.sh` sets these via `set_env ... "$(get_env ...)"`. When changing one, update the mirrors too (see how `change-domain.sh` threads values through).
+- Read/write env values only via `scripts/common.sh` helpers `get_env`/`set_env` (idempotent, in-place sed, `|`-delimited). Don't parse `.env` by hand.
+
+### Config rendering (`scripts/common.sh`)
+- `render_realm()` runs `envsubst` over an **allow-list** of variables only, reading `docker/keycloak/realm.json.tmpl` → `docker/keycloak/realm.json` (git-ignored). The allow-list keeps unrelated JSON untouched.
+- `render_librechat()` just copies `librechat.yaml.tmpl` → `librechat.yaml` (LibreChat resolves `${ENV}` itself at runtime).
+- Both rendered artifacts are git-ignored. After editing a `.tmpl`, re-run the renderer (or `install.sh`).
+
+### Shared shell helpers (`scripts/common.sh`) — sourced by every script
+`REPO_ROOT`, `ENV_FILE`, `dc()` (always runs `docker compose --env-file .env` from repo root), `require_root`, `require_cmd`, `get_env`/`set_env`, `rand_hex`/`rand_b64url`/`rand_b64`/`rand_uuid`, `render_realm`/`render_librechat`, `wait_for_service`, and the colored loggers (`log`/`info`/`success`/`warn`/`error`/`die`/`heading`). New scripts should `source scripts/common.sh`, use `set -euo pipefail`, and keep `shellcheck`-clean.
+
+### `docker-compose.yml` anchors
+Reuse `x-logging`, `x-restart`, `x-security` (`<<: [*default-restart, *hardening]`). Every service needs a healthcheck, `restart` policy, and `logging` config — except where a distroless/no-HTTP image makes one impossible (oauth2-proxy, langfuse-worker); those gate readiness via `depends_on` and a comment explaining the omission.
+
+### Startup ordering & ordering pitfalls (read before touching deps)
+- `depends_on: ... condition: service_healthy` chains the boot order; `wait_for_service <svc> <timeout>` in `install.sh` blocks until healthy.
+- **oauth2-proxy startup deadlock**: it does OIDC discovery against the **internal** Keycloak (`http://keycloak:8080`) via `OAUTH2_PROXY_SKIP_OIDC_DISCOVERY: true` so it doesn't depend on public DNS/TLS/NGINX being up. The browser-facing login URL stays public; token redeem + JWKS go over the backend network. The issuer claim is still validated against the public URL. Don't "simplify" this back to public discovery.
+- **LibreChat OIDC discovery** runs once at startup against `https://auth.<domain>`. It boots before the real Let's Encrypt cert exists (self-signed bootstrap), so `install.sh` and `change-domain.sh` **restart LibreChat after cert issuance** so discovery re-runs against the trusted cert. Keep this restart when changing the TLS/domain flow.
+- **LangFlow multi-worker requires Redis**: `LANGFLOW_JOB_QUEUE_TYPE=redis` + `LANGFLOW_REDIS_QUEUE_URL` are mandatory — LangFlow refuses `--workers>1` with the default in-memory build queue. The web tier runs `langflow run` (not raw gunicorn) because that's what mounts the frontend UI; raw gunicorn against `langflow.main:create_app()` returns `{"detail":"Not Found"}` at `/`.
+- **LangFuse v3** needs Postgres + ClickHouse + Redis + MinIO; `minio-init` creates the bucket and its completion is the MinIO readiness gate.
+- Postgres per-service DBs are provisioned **once** by `docker/postgres/init/01-databases.sh` (least-privilege role+db per service, public schema locked to owner). Runs only on first init of the data volume.
+
+### NGINX config layout
+`docker/nginx/conf.d/` is a **directory bind-mount** (edits visible to the running container; `nginx -s reload` applies them — see `make reload-nginx`). `nginx.conf` itself is a single-file mount pinned to its inode at container start, so structural changes there need a recreate. Per-subdomain vhosts: `chat.conf`, `auth.conf`/`default.conf`, `flow.conf`, `trace.conf`, plus shared `ssl.conf`, `proxy.conf`, `ratelimit.conf`, `security-headers.conf`, `metrics.conf`, `acme.conf`, `upstreams.conf`. `upstreams.conf` `include`s `figlinks.conf` (a separate external project's vhost) — keep that include in exactly one place to avoid duplicate server blocks.
+
+### Day-2 / lifecycle scripts (all `sudo`, all source `common.sh`)
+`install.sh`, `upgrade.sh`, `uninstall.sh`, `healthcheck.sh` at repo root; `scripts/` holds `common.sh`, `gen-secrets.sh`, `langfuse-keys.sh` (auto-wires LangFlow→Langfuse tracing keys), `bootstrap-certs.sh`/`issue-certs.sh`, `backup.sh`/`restore.sh`, `change-domain.sh`, `wait-for.sh`. `install.sh` installs systemd timers for daily cert renewal (03:30) + daily backup (02:00).
+
+## Self-test convention (follow for any non-trivial script logic)
+
+Logic that can run without the live stack gets an offline self-test (`scripts/<name>.selftest.sh`, run by `make test` and CI). Pattern:
+1. **Factor logic into functions** in the target script, and guard `main` with `[ "${BASH_SOURCE[0]}" = "${0}" ]` so the script can be **sourced** (functions callable) without executing main.
+2. The self-test sources/mocks: builds a throwaway `.env` + `REPO_ROOT`, installs a mock `docker`/`systemctl`/`id` on `PATH` (see `scripts/selftest-lib.sh`'s `st_make_sandbox` for the integration-test variant that copies the whole repo), then asserts pure logic. `set -uo pipefail` (not `-e`) so assertions can collect; end with `[ "${FAIL}" -eq 0 ]` and print `== results: N passed, M failed ==`.
+3. Functions prefixed per-script (e.g. `cd_*` in `change-domain.sh`) so they're addressable from the test.
+
+When adding non-trivial script behavior: factor into functions, guard main, add a `.selftest.sh`.
+
+## Coding standards (from CONTRIBUTING.md)
+- **Shell**: `bash`, `set -euo pipefail`, source `scripts/common.sh`, `shellcheck`-clean (justify any `disable` with a comment).
+- **Compose/YAML**: 2-space indent; reuse the `x-*` anchors; every service needs healthcheck + restart + logging.
+- **Config**: host/secret-specific values belong in `.env` or a `.tmpl` rendered at install — never hard-coded.
+- **Docs**: update the relevant `docs/<topic>.md` and any affected tables when behavior changes.
+- **Commits**: imperative, Conventional Commits (`feat:`/`fix:`/`docs:`/`ci:`/`refactor:`…).
+- **Security**: never commit secrets, populated `.env`, or rendered `realm.json`/`librechat.yaml` (all git-ignored — keep them so). New services should run non-root, drop capabilities, mount config read-only, avoid default creds. See `docs/security.md`.
