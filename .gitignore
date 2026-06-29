@@ -252,3 +252,12 @@ Thumbs.db
 *~
 .idea/
 .vscode/
+
+# --- Per-server exception: FigLinks edge integration -------------------------
+# FigLinks is a separate project present only on specific hosts (not part of
+# the ai-platform stack). Its nginx vhost + permissive security headers are
+# local to those hosts; do NOT commit them (fresh installs have no FigLinks and
+# upstreams.conf's figlinks include is kept local via `git update-index
+# --skip-worktree`).
+docker/nginx/conf.d/figlinks.conf
+docker/nginx/conf.d/security-headers-figlinks.conf
