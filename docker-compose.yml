@@ -280,6 +280,12 @@ services:
       # (or set "false") once on a LangFlow release that makes the resource manager
       # picklable / excludes it from the tool deepcopy.
       LANGFLOW_DEACTIVATE_TRACING: "true"
+      # SSRF protection blocks private/internal IPs by default (RFC1918 10/172.16/
+      # 192.168, loopback, link-local, etc.). Allowlist internal hosts this
+      # deployment must legitimately reach (comma-separated hostnames, IPs, or
+      # CIDR ranges, e.g. 10.14.210.7 or 10.14.210.0/24). Empty = strict (block all
+      # private IPs). Host-specific, sourced from .env.
+      LANGFLOW_SSRF_ALLOWED_HOSTS: ${LANGFLOW_SSRF_ALLOWED_HOSTS:-}
       DO_NOT_TRACK: "true"
     volumes:
       - langflow_data:/var/lib/langflow
