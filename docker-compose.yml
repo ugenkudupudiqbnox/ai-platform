@@ -246,13 +246,22 @@ services:
       LANGFLOW_SUPERUSER: ${LANGFLOW_SUPERUSER}
       LANGFLOW_SUPERUSER_PASSWORD: ${LANGFLOW_SUPERUSER_PASSWORD}
       LANGFLOW_SECRET_KEY: ${LANGFLOW_SECRET_KEY}
-      LANGFLOW_WORKERS: ${LANGFLOW_WORKERS}
+      # Web tier pinned to a single worker and lazy component loading to bound RAM
+      # on memory-constrained hosts (each worker otherwise imports the full
+      # component library). Error-only logging reduces INFO-level output (the
+      # feature-flags poller still warns every 30s regardless of level).
+      LANGFLOW_WORKERS: "1"
       LANGFLOW_WORKER_TIMEOUT: ${LANGFLOW_WORKER_TIMEOUT}
-      LANGFLOW_PRELOAD: ${LANGFLOW_PRELOAD}
-      LANGFLOW_LOG_LEVEL: ${LANGFLOW_LOG_LEVEL}
+      LANGFLOW_PRELOAD: "false"
+      LANGFLOW_LOG_LEVEL: "error"
       LANGFLOW_PROMETHEUS_ENABLED: "true"
       LANGFLOW_PROMETHEUS_PORT: "9090"
       LANGFLOW_CACHE_TYPE: memory
+      # Disable the LangFlow component Store/marketplace. Each flow-page load
+      # otherwise makes an outbound /store/tags call to api.langflow.store (~1.3s
+      # of geo-latency). Safe to disable: custom/installed components live in the
+      # DB, not the store. Re-enable (true) only if you browse the Store tab.
+      LANGFLOW_STORE: "false"
       # Shared Redis job queue (full URL with embedded auth — LangFlow consumes
       # it via StrictRedis.from_url). REQUIRED to run more than one web worker:
       # LangFlow refuses multi-worker with the default in-memory build queue.
@@ -266,6 +275,14 @@ services:
     volumes:
       - langflow_data:/var/lib/langflow
     networks: [backend, edge]
+    # Cap the web tier's memory so it can't balloon the host into swap/OOM.
+    # Enforced by Compose in non-swarm mode via the container cgroup.
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
     depends_on:
       postgres:
         condition: service_healthy
