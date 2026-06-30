@@ -243,6 +243,14 @@ services:
       LANGFLOW_DATABASE_URL: postgresql://${LANGFLOW_DB_USER}:${LANGFLOW_DB_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${LANGFLOW_DB_NAME}
       LANGFLOW_CONFIG_DIR: /var/lib/langflow
       LANGFLOW_AUTO_LOGIN: "true"
+      # LibreChat (and other internal callers on the backend network) send their
+      # API key as `Authorization: Bearer`, but LangFlow's auto-login mode rejects
+      # Bearer and only accepts `x-api-key` -> every API call 401/403s. Skipping the
+      # auth check lets internal callers reach the API without a key. Safe because:
+      # port 7860 is only reachable on the trusted `backend` network; the public
+      # flow.<domain> path is still gated by oauth2-proxy. Drop this (and use
+      # x-api-key) once LangFlow accepts Bearer or LibreChat can send x-api-key.
+      LANGFLOW_SKIP_AUTH_AUTO_LOGIN: "true"
       LANGFLOW_SUPERUSER: ${LANGFLOW_SUPERUSER}
       LANGFLOW_SUPERUSER_PASSWORD: ${LANGFLOW_SUPERUSER_PASSWORD}
       LANGFLOW_SECRET_KEY: ${LANGFLOW_SECRET_KEY}
@@ -312,6 +320,46 @@ services:
       timeout: 10s
       retries: 10
       start_period: 60s
+
+  # OpenAI-compatible adapter that bridges LibreChat -> LangFlow.
+  # LangFlow 1.10.1 only implements the Responses API (string `input`, Bearer
+  # rejected, no /chat/completions), which LibreChat's plain custom-endpoint
+  # client cannot speak. This stdlib-only shim exposes /v1/chat/completions,
+  # extracts the user text from the messages array, calls LangFlow's native
+  # POST /api/v1/run/<flow_id>, and wraps the flow output as a chat-completions
+  # (or streaming chunk) response. No image build — just python:3.12-slim with
+  # the script bind-mounted read-only. Internal-only (backend network).
+  langflow-openai-adapter:
+    image: python:3.12-slim
+    <<: [*default-restart, *hardening]
+    logging: *default-logging
+    command: ["python", "/app/adapter.py"]
+    environment:
+      LANGFLOW_BASE_URL: http://langflow:7860
+      # Optional static model list for GET /v1/models (only used if the
+      # LibreChat endpoint sets fetch: true). Comma-separated flow ids.
+      LANGFLOW_FLOW_IDS: ${LANGFLOW_ADAPTER_FLOW_IDS:-}
+      ADAPTER_PORT: "8080"
+      ADAPTER_RUN_TIMEOUT: ${LANGFLOW_WORKER_TIMEOUT:-300}
+      # Verbose access logging (request headers + body keys + conversationId
+      # resolution). Off by default; set LANGFLOW_ADAPTER_DEBUG=1 in .env while
+      # integrating, then unset for production.
+      ADAPTER_DEBUG: ${LANGFLOW_ADAPTER_DEBUG:-0}
+    volumes:
+      - ./docker/langflow-adapter/adapter.py:/app/adapter.py:ro
+    networks: [backend]
+    depends_on:
+      langflow:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/health').status==200 else 1)"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
 
   # LangFlow Celery worker tier — scale with `--scale langflow-worker=N`
   # or via LANGFLOW_WORKER_REPLICAS (deploy.replicas).

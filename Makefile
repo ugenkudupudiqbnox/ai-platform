@@ -9,7 +9,8 @@ DC := docker compose --env-file $(ENV_FILE)
 
 .PHONY: help install upgrade uninstall up down restart ps logs health \
         backup restore build pull reload-nginx issue-certs change-domain \
-        monitoring-up monitoring-down scale-workers config validate test self-test
+        monitoring-up monitoring-down scale-workers config validate test self-test \
+        librechat-restart
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -56,6 +57,10 @@ pull: ## Pull all images
 
 reload-nginx: ## Reload NGINX configuration
 	$(DC) exec nginx nginx -s reload
+
+librechat-restart: ## Restart LibreChat to apply edits made directly to librechat.yaml
+	$(DC) restart librechat
+	@echo "LibreChat restarting; tail with: make logs S=librechat"
 
 issue-certs: ## (Re)issue Let's Encrypt certificates
 	sudo ./scripts/issue-certs.sh
