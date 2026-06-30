@@ -295,8 +295,22 @@ services:
       # private IPs). Host-specific, sourced from .env.
       LANGFLOW_SSRF_ALLOWED_HOSTS: ${LANGFLOW_SSRF_ALLOWED_HOSTS:-}
       DO_NOT_TRACK: "true"
+      # Installed Extension Bundles (server-trusted components). Each subfolder
+      # of /app/extensions with an extension.json is discovered as an inline
+      # bundle at the @extra slot. Bundled components register in the trusted
+      # component registry, so the public shareable playground builds them
+      # (server code substitution) WITHOUT needing the insecure
+      # LANGFLOW_ALLOW_PUBLIC_CUSTOM_COMPONENTS=true toggle — inline custom
+      # components are blocked on the public path, bundled ones are not.
+      # Built-in components are unaffected: they load from the prebuilt
+      # component index, and the base components path is filtered out of custom
+      # loading anyway, so this only ADDS our bundled components. Read-only
+      # mount; apply edits via container recreate.
+      LANGFLOW_COMPONENTS_PATH: /app/extensions
     volumes:
       - langflow_data:/var/lib/langflow
+      # Extension Bundles (ap-tools: Zoho Books + FOODICS AP tools). Read-only.
+      - ./docker/langflow-extensions:/app/extensions:ro
     networks: [backend, edge]
     # Cap the web tier's memory so it can't balloon the host into swap/OOM.
     # Enforced by Compose in non-swarm mode via the container cgroup.

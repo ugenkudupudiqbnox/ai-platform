@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lfx-ap-tools"
+version = "0.1.0"
+description = "AP Tools -- a Langflow Extension bundling the Zoho Books and FOODICS accounts-payable agent tools."
+requires-python = ">=3.10"
+dependencies = []
+
+[tool.setuptools]
+package-dir = {"" = "."}
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["components*"]
+
+[tool.setuptools.package-data]
+"*" = ["extension.json"]
+
+[tool.langflow.extension]
+manifest = "extension.json"
+
+[project.entry-points."langflow.extensions"]
+ap_tools = "components.ap_tools"

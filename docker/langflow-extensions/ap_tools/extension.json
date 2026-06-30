@@ -1,0 +1,21 @@
+{
+  "$schema": "https://schemas.langflow.org/extension/v1.json",
+  "id": "ap-tools",
+  "version": "0.1.0",
+  "name": "AP Tools",
+  "description": "Accounts-payable tools (Zoho Books + FOODICS) for the AP agent flow. Packaged as an installed Extension Bundle so the components are server-trusted (recognized on the public playground path) rather than inline custom code. Credentials are supplied via LangFlow Secret Global Variables selected on each component (load_from_db).",
+  "lfx": {
+    "compat": ["1"]
+  },
+  "bundles": [
+    {
+      "name": "ap_tools",
+      "path": "components/ap_tools",
+      "display_name": "AP Tools",
+      "icon": "Package"
+    }
+  ],
+  "capabilities": {
+    "requiresCredentials": true
+  }
+}
