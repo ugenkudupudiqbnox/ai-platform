@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cosmic-vikings/ar-agent/contracts/invoice-data.schema.json",
+  "title": "InvoiceData",
+  "description": "A Zoho Books AR invoice. Read by ar_fetch_invoices; authored by ar_issue_invoice. Customer is referenced by id only (§16).",
+  "x-contract-version": "1.0.0",
+  "x-status": "draft",
+  "x-since": "2026-07-06",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["invoice_id", "invoice_number", "customer_ref", "tenant", "issue_date", "due_date", "line_items", "subtotal", "total", "currency", "status", "balance_due", "contract_version"],
+  "properties": {
+    "invoice_id": {"type": "string", "minLength": 1, "description": "Zoho Books invoice id."},
+    "invoice_number": {"type": "string", "minLength": 1, "description": "Human-facing invoice number."},
+    "customer_ref": {"type": "string", "minLength": 1, "description": "Zoho customer id; no PII (§16)."},
+    "tenant": {"type": "string", "minLength": 1},
+    "issue_date": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
+    "due_date": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
+    "line_items": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/line_item"}
+    },
+    "subtotal": {"type": "string", "pattern": "^\\d+\\.\\d{2}$", "description": "Sum of line amounts before tax/discount, non-negative."},
+    "tax": {"type": "string", "pattern": "^\\d+\\.\\d{2}$", "description": "Total tax, non-negative."},
+    "discounts": {"type": "string", "pattern": "^\\d+\\.\\d{2}$", "description": "Total discounts applied, non-negative."},
+    "total": {"type": "string", "pattern": "^\\d+\\.\\d{2}$", "description": "Invoice total (subtotal + tax - discounts), non-negative."},
+    "currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
+    "status": {"type": "string", "enum": ["draft", "sent", "open", "paid", "partial", "void", "overdue"]},
+    "balance_due": {"type": "string", "pattern": "^\\d+\\.\\d{2}$", "description": "Remaining unpaid amount, non-negative."},
+    "po_number": {"type": "string", "minLength": 1, "description": "Customer purchase order number, when present."},
+    "salesperson_ref": {"type": "string", "minLength": 1, "description": "Salesperson id; no PII (§16)."},
+    "notes": {"type": "string", "description": "Internal notes; must not contain PII/secrets (§16)."},
+    "source_ref": {"type": "string", "minLength": 1, "description": "Native Zoho reference."},
+    "contract_version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"}
+  },
+  "$defs": {
+    "line_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["line_id", "item_ref", "description", "qty", "unit_price", "amount"],
+      "properties": {
+        "line_id": {"type": "string", "minLength": 1},
+        "item_ref": {"type": "string", "minLength": 1, "description": "Item/product id."},
+        "description": {"type": "string", "minLength": 1, "description": "Line description; must not contain PII/secrets (§16)."},
+        "qty": {"type": "string", "pattern": "^\\d+\\.\\d{2}$", "description": "Quantity as 2dp string (Decimal-safe)."},
+        "unit_price": {"type": "string", "pattern": "^\\d+\\.\\d{2}$"},
+        "amount": {"type": "string", "pattern": "^\\d+\\.\\d{2}$", "description": "qty × unit_price, non-negative."}
+      }
+    }
+  }
+}

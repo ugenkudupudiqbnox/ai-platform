@@ -1,0 +1,38 @@
+{
+  "invoice_id": "zoho-inv-INV-123",
+  "invoice_number": "INV-123",
+  "customer_ref": "cust-cv-0421",
+  "tenant": "cosmic-vikings-ksa",
+  "issue_date": "2026-07-01",
+  "due_date": "2026-07-15",
+  "line_items": [
+    {
+      "line_id": "li-01",
+      "item_ref": "item-catering-tray-A",
+      "description": "Catering tray A — 10 pax",
+      "qty": "1.00",
+      "unit_price": "1200.00",
+      "amount": "1200.00"
+    },
+    {
+      "line_id": "li-02",
+      "item_ref": "item-service-charge",
+      "description": "Delivery + setup",
+      "qty": "1.00",
+      "unit_price": "300.00",
+      "amount": "300.00"
+    }
+  ],
+  "subtotal": "1500.00",
+  "tax": "225.00",
+  "discounts": "0.00",
+  "total": "1725.00",
+  "currency": "SAR",
+  "status": "open",
+  "balance_due": "1725.00",
+  "po_number": "PO-CV-2026-0098",
+  "salesperson_ref": "sp-cv-007",
+  "notes": "Catering for branch opening event.",
+  "source_ref": "INV-123",
+  "contract_version": "1.0.0"
+}

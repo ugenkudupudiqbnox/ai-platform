@@ -1,0 +1,26 @@
+{
+  "approval_id": "c2a7b1e4-6d5f-4a3b-8e2c-9f1a2b3c4d5e",
+  "trace_id": "ar-trace-07f3a1d2",
+  "tenant": "cosmic-vikings-ksa",
+  "action": "gl.post",
+  "amount": "1500.00",
+  "currency": "SAR",
+  "tier": "approval",
+  "requested_by": "auth0|keycloak-sub-cv-admin-001",
+  "requested_at": "2026-07-06T09:15:00Z",
+  "proposal": {
+    "operation": "post_payment",
+    "target": "INV-123",
+    "amount": "1500.00",
+    "currency": "SAR",
+    "details": {
+      "payment_ref": "pay-zoho-PMT-5512",
+      "matched_receipt": "RCT-9087"
+    }
+  },
+  "idempotency_key": "ar-idem:gl_post:inv-123:7f3a1d2e",
+  "expires_at": "2026-07-06T21:15:00Z",
+  "approval_ref": "ar-approval-c2a7b1e4-6d5f-4a3b-8e2c-9f1a2b3c4d5e",
+  "second_approver_required": false,
+  "contract_version": "1.0.0"
+}

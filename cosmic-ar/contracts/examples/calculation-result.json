@@ -1,0 +1,22 @@
+{
+  "trace_id": "ar-trace-07f3a1d2",
+  "tenant": "cosmic-vikings-ksa",
+  "calculation_type": "match",
+  "totals": {
+    "matched": "1500.00",
+    "outstanding": "3500.00",
+    "posted": "0.00"
+  },
+  "line_items": [
+    {
+      "label": "matched:INV-123:RCT-9087",
+      "amount": "1500.00",
+      "source_refs": ["zoho-inv-INV-123", "foodics-rct-RCT-9087", "pay-zoho-PMT-5512"]
+    }
+  ],
+  "currency": "SAR",
+  "inputs_ref": "a1b2c3d4-1a2b-3c4d-5e6f-7890abcdef01",
+  "computed_at": "2026-07-06T09:14:48Z",
+  "rounding_adjustment": "0.00",
+  "contract_version": "1.0.0"
+}

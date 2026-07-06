@@ -23,6 +23,16 @@ RUN mkdir -p /var/lib/langflow \
 COPY --chmod=0755 entrypoint.sh /opt/aiplatform/entrypoint.sh
 COPY --chmod=0755 worker-entrypoint.sh /opt/aiplatform/worker-entrypoint.sh
 
+# File-parsing deps for the Cosmic AR File Intake Flow (ADR-0004): openpyxl reads
+# Excel (.xlsx/.xlsm/.xls), pdfplumber reads PDF. CSV uses stdlib and needs no dep.
+# Installed as root before dropping to USER 1000. A `langflow`/`langflow-worker`
+# image rebuild is required to exercise Excel/PDF reading at runtime
+# (`docker compose build langflow langflow-worker`); compose config is unaffected.
+# Pins are minor-bounded to stay compatible with the image's Python.
+RUN pip install --no-cache-dir \
+      "openpyxl>=3.1,<4" \
+      "pdfplumber>=0.11,<0.12"
+
 ENV LANGFLOW_CONFIG_DIR=/var/lib/langflow \
     PYTHONUNBUFFERED=1
 

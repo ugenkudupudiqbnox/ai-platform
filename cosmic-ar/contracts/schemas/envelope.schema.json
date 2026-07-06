@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cosmic-vikings/ar-agent/contracts/envelope.schema.json",
+  "title": "Envelope",
+  "description": "Canonical JSON response envelope (constitution §14). Every component output method and every flow run returns this. `data` holds one of the 14 contract payloads; polymorphic validation is performed against the specific contract schema (see contracts.md), not enforced inline so each contract remains independently machine-validatable.",
+  "x-contract-version": "1.0.0",
+  "x-status": "draft",
+  "x-since": "2026-07-06",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status", "code", "trace_id"],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["ok", "error", "pending_approval"],
+      "description": "§14 status. ok = data holds the payload; error = error holds detail; pending_approval = approval_ref identifies the approval to fulfill (§19)."
+    },
+    "code": {
+      "type": "string",
+      "pattern": "^AR_[A-Z_]+$",
+      "description": "Stable AR_* code (§9). Callers branch on code, never on free-text parsing."
+    },
+    "data": {
+      "type": "object",
+      "description": "One of the 14 contract payloads (present on status=ok, describes the proposed action on pending_approval). Secrets are never present (§16)."
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["message"],
+      "properties": {
+        "message": {"type": "string", "minLength": 1, "description": "Human-readable error message."},
+        "detail": {"type": "string", "description": "Opaque diagnostic context; raw exceptions are never leaked (§9)."}
+      },
+      "description": "Present only on status=error."
+    },
+    "trace_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Correlates one AR run across nodes (§12)."
+    },
+    "approval_ref": {
+      "type": "string",
+      "pattern": "^ar-approval-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Present only on status=pending_approval; identifies the approval to fulfill (§19). Non-reusable: one ref authorizes exactly one idempotent action."
+    }
+  }
+}

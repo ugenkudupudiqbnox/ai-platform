@@ -1,0 +1,30 @@
+{
+  "trace_id": "ar-trace-07f3a1d2",
+  "flow_id": "9b1d4e7a-3c8f-4a2b-9e6d-1f2a3b4c5d6e",
+  "tenant": "cosmic-vikings-ksa",
+  "intent": "post_received_payment",
+  "status": "awaiting_approval",
+  "matched_amount": "1500.00",
+  "outstanding_balance": "3500.00",
+  "posted_total": "1500.00",
+  "pending_approvals": [
+    {
+      "approval_id": "c2a7b1e4-6d5f-4a3b-8e2c-9f1a2b3c4d5e",
+      "action": "gl.post",
+      "amount": "1500.00",
+      "requested_by": "auth0|keycloak-sub-cv-admin-001",
+      "requested_at": "2026-07-06T09:15:00Z",
+      "approval_ref": "ar-approval-c2a7b1e4-6d5f-4a3b-8e2c-9f1a2b3c4d5e"
+    }
+  ],
+  "idempotency_keys": {
+    "gl.post": "ar-idem:gl_post:inv-123:7f3a1d2e"
+  },
+  "tool_call_ref": "ar-trace-07f3a1d2:zoho_books_ar.gl_post:1",
+  "audit_refs": ["audit-20260706-0001"],
+  "current_node": "approvalGate",
+  "last_checkpoint_id": "e1b2c3d4-7a6b-5c4d-3e2f-1a0b9c8d7e6f",
+  "created_at": "2026-07-06T09:14:30Z",
+  "updated_at": "2026-07-06T09:15:05Z",
+  "contract_version": "1.0.0"
+}

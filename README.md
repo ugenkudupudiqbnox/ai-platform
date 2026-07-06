@@ -96,6 +96,8 @@ make upgrade         # pull/rebuild and recreate
 | Topic | File |
 |-------|------|
 | Architecture | [docs/architecture.md](docs/architecture.md) |
+| Cosmic AR Agent — Constitution | [docs/cosmic-ar-constitution.md](docs/cosmic-ar-constitution.md) |
+| Cosmic AR Agent — Architecture | [docs/cosmic-ar-architecture.md](docs/cosmic-ar-architecture.md) |
 | Installation | [docs/installation.md](docs/installation.md) |
 | Upgrade | [docs/upgrade.md](docs/upgrade.md) |
 | Backup | [docs/backup.md](docs/backup.md) |

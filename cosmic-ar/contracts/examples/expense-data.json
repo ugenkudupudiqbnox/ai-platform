@@ -1,0 +1,46 @@
+{
+  "trace_id": "ar-trace-07f3a1d2",
+  "tenant": "cosmic-vikings-ksa",
+  "period": {
+    "start": "2026-07-01",
+    "end": "2026-07-06"
+  },
+  "total": "-750.00",
+  "currency": "SAR",
+  "adjustments": [
+    {
+      "adjustment_id": "adj-rfd-2103",
+      "type": "refund",
+      "customer_ref": "cust-cv-0421",
+      "invoice_ref": "INV-118",
+      "amount": "-500.00",
+      "currency": "SAR",
+      "reason_code": "goods_returned",
+      "posted_at": "2026-07-05T16:05:00Z",
+      "approval_ref": "ar-approval-d4e5f6a7-1b2c-3d4e-9f8a-7b6c5d4e3f2a",
+      "idempotency_key": "ar-idem:refund:inv-118:9a2b"
+    },
+    {
+      "adjustment_id": "adj-woff-2104",
+      "type": "write_off",
+      "customer_ref": "cust-cv-0900",
+      "invoice_ref": "INV-077",
+      "amount": "-250.00",
+      "currency": "SAR",
+      "reason_code": "bad_debt",
+      "posted_at": "2026-07-05T17:20:00Z",
+      "approval_ref": "ar-approval-e5f6a7b8-2c3d-4e5f-8a9b-0c1d2e3f4a5b",
+      "idempotency_key": "ar-idem:write_off:inv-077:1c3d"
+    }
+  ],
+  "by_type": [
+    {"type": "refund", "amount": "-500.00", "count": 1},
+    {"type": "write_off", "amount": "-250.00", "count": 1}
+  ],
+  "approval_refs": [
+    "ar-approval-d4e5f6a7-1b2c-3d4e-9f8a-7b6c5d4e3f2a",
+    "ar-approval-e5f6a7b8-2c3d-4e5f-8a9b-0c1d2e3f4a5b"
+  ],
+  "generated_at": "2026-07-06T09:15:00Z",
+  "contract_version": "1.0.0"
+}

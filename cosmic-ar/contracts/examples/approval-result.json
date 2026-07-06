@@ -1,0 +1,13 @@
+{
+  "approval_id": "c2a7b1e4-6d5f-4a3b-8e2c-9f1a2b3c4d5e",
+  "approval_ref": "ar-approval-c2a7b1e4-6d5f-4a3b-8e2c-9f1a2b3c4d5e",
+  "decision": "approved",
+  "decided_by": "auth0|keycloak-sub-cv-finance-lead-002",
+  "decided_at": "2026-07-06T09:22:00Z",
+  "trace_id": "ar-trace-07f3a1d2",
+  "tier": "approval",
+  "idempotency_key": "ar-idem:gl_post:inv-123:7f3a1d2e",
+  "reason": "Matched to RCT-9087; posting authorized.",
+  "consumed": true,
+  "contract_version": "1.0.0"
+}

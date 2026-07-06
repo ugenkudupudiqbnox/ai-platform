@@ -1,0 +1,16 @@
+{
+  "notification_id": "b3c4d5e6-1a2b-3c4d-9e8f-7a6b5c4d3e2f",
+  "trace_id": "ar-trace-07f3a1d2",
+  "tenant": "cosmic-vikings-ksa",
+  "channel": "email",
+  "recipient_ref": "cust-cv-0421",
+  "template": "dunning.reminder_1",
+  "status": "sent",
+  "triggered_at": "2026-07-06T08:00:00Z",
+  "approval_ref": "ar-approval-c2a7b1e4-6d5f-4a3b-8e2c-9f1a2b3c4d5e",
+  "body_ref": "store://notify-body/2026/07/06/b3c4d5e6.json",
+  "subject_ref": "store://notify-subject/2026/07/06/b3c4d5e6.txt",
+  "sent_at": "2026-07-06T08:00:12Z",
+  "dunning_level": 1,
+  "contract_version": "1.0.0"
+}

@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cosmic-vikings/ar-agent/contracts/document-manifest.schema.json",
+  "title": "DocumentManifest",
+  "description": "Ingest bundle of documents (invoices, receipts, credit notes, payments) fetched for matching/reconciliation. Produced by ar_fetch_invoices / ar_fetch_receipts; consumed by ar_match_payments / ar_reconcile.",
+  "x-contract-version": "1.0.0",
+  "x-status": "draft",
+  "x-since": "2026-07-06",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["manifest_id", "trace_id", "tenant", "documents", "totals", "contract_version"],
+  "properties": {
+    "manifest_id": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
+    "trace_id": {"type": "string", "minLength": 1},
+    "tenant": {"type": "string", "minLength": 1},
+    "documents": {
+      "type": "array",
+      "minItems": 0,
+      "items": {"$ref": "#/$defs/document"}
+    },
+    "totals": {"$ref": "#/$defs/totals"},
+    "source_systems": {
+      "type": "array",
+      "items": {"type": "string", "enum": ["zoho", "foodics"]},
+      "description": "Distinct source systems represented in this manifest."
+    },
+    "period": {"$ref": "#/$defs/period"},
+    "generated_at": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"},
+    "contract_version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"}
+  },
+  "$defs": {
+    "document": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["doc_id", "doc_type", "source", "source_ref", "customer_ref", "amount", "currency", "posted_at", "status", "fetched_at"],
+      "properties": {
+        "doc_id": {"type": "string", "minLength": 1, "description": "Stable id within the source system."},
+        "doc_type": {"type": "string", "enum": ["invoice", "receipt", "credit_note", "payment"]},
+        "source": {"type": "string", "enum": ["zoho", "foodics"]},
+        "source_ref": {"type": "string", "minLength": 1, "description": "Source-system native reference (e.g. Zoho invoice number, Foodics receipt id)."},
+        "customer_ref": {"type": "string", "minLength": 1, "description": "Customer id; no PII (§16)."},
+        "amount": {"type": "string", "pattern": "^-?\\d+\\.\\d{2}$"},
+        "currency": {"type": "string", "pattern": "^[A-Z]{3}$", "description": "ISO-4217."},
+        "posted_at": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"},
+        "status": {"type": "string", "minLength": 1, "description": "Source-system status (e.g. open/paid/void)."},
+        "fetched_at": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"}
+      }
+    },
+    "totals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["count", "sum"],
+      "properties": {
+        "count": {"type": "integer", "minimum": 0},
+        "sum": {"type": "string", "pattern": "^-?\\d+\\.\\d{2}$", "description": "Sum of document amounts, 2dp string."}
+      }
+    },
+    "period": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end"],
+      "properties": {
+        "start": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
+        "end": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"}
+      }
+    }
+  }
+}

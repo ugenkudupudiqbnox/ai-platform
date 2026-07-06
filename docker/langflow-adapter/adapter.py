@@ -26,16 +26,26 @@ by oauth2-proxy.
 Stdlib only — no pip, no image build. Bind-mounted into python:3.12-slim.
 """
 
+import base64
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
 import urllib.request
+import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
 LANGFLOW_BASE_URL = os.environ.get("LANGFLOW_BASE_URL", "http://langflow:7860").rstrip("/")
+
+# Approval reference shape (contracts: ar-approval-<uuid>). Used to detect a
+# human's approval/reject reply so the adapter forwards it unchanged and the
+# supervisor resumes its paused LangGraph checkpoint via session_id (§19/§11).
+APPROVAL_REF_RE = re.compile(
+    r"ar-approval-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+)
 # Optional static model list for GET /v1/models (comma-separated flow ids).
 # When empty, /v1/models returns an empty list — LibreChat's `models.default`
 # in librechat.yaml is the authoritative list, so this is only needed if you
@@ -99,16 +109,221 @@ def extract_responses_input(payload):
     return "\n".join(t for t in texts if t)
 
 
-def run_flow(flow_id, text, session_id=None):
+def _decode_data_url(url):
+    """Decode a `data:<mime>;base64,<payload>` URL into (bytes, mime) or None.
+
+    Returns None for non-data URLs (we do NOT fetch remote URLs — best-effort,
+    no SSRF surface) and for malformed data URLs.
+    """
+    if not isinstance(url, str) or not url.startswith("data:"):
+        return None
+    try:
+        header, payload = url.split(",", 1)
+    except ValueError:
+        return None
+    mime = header[5:].split(";")[0] or "application/octet-stream"
+    if "base64" not in header:
+        return None
+    try:
+        # validate=True so non-base64 chars (garbage/truncation) raise instead of
+        # silently producing wrong bytes we'd then upload to LangFlow.
+        return base64.b64decode(payload, validate=True), mime
+    except Exception:  # noqa: BLE001 - malformed/truncated base64
+        return None
+
+
+def extract_files(messages):
+    """Collect uploaded files from an OpenAI/LibreChat messages array.
+
+    Returns a list of `(filename, bytes, content_type)` tuples. Handles, in
+    priority order:
+
+      * LibreChat `attachments` on a user message (each `{url|filepath,
+        filename, contentType|mime}` — `url` may be a data URL).
+      * OpenAI content-part `image_url` / `input_image` / `output_image`
+        carrying a data URL.
+      * OpenAI content-part `input_file` / `file` with `file_data` (data URL)
+        or raw bytes.
+
+    Remote http(s) URLs are deliberately NOT fetched (no SSRF surface; the
+    supervisor only needs files the client already has). Best-effort: any
+    part we can't decode is skipped, never raised.
+    """
+    out = []
+    for msg in messages or []:
+        if not isinstance(msg, dict):
+            continue
+        # LibreChat attachments (often on the user message, independent of
+        # content-part shape).
+        for att in msg.get("attachments") or []:
+            if not isinstance(att, dict):
+                continue
+            fname = att.get("filename") or att.get("name") or ""
+            mime = att.get("contentType") or att.get("mime") or att.get("mimeType") or ""
+            url = att.get("url") or att.get("filepath") or ""
+            decoded = _decode_data_url(url)
+            if decoded is not None:
+                data, dmime = decoded
+                out.append((fname or "attachment", data, mime or dmime))
+            continue
+        # OpenAI content-parts array.
+        content = msg.get("content")
+        if not isinstance(content, list):
+            continue
+        for part in content:
+            if not isinstance(part, dict):
+                continue
+            ptype = part.get("type")
+            fname = part.get("filename") or part.get("name") or ""
+            url = None
+            if ptype in ("image_url", "input_image", "output_image"):
+                iu = part.get("image_url")
+                url = iu.get("url") if isinstance(iu, dict) else iu
+            elif ptype in ("input_file", "file"):
+                fd = part.get("file_data")
+                url = fd.get("url") if isinstance(fd, dict) else fd
+                if url is None and isinstance(part.get("file_data"), (bytes, bytearray)):
+                    out.append((fname or "file", bytes(part["file_data"]),
+                                part.get("content_type") or "application/octet-stream"))
+                    continue
+            if url:
+                decoded = _decode_data_url(url)
+                if decoded is not None:
+                    data, dmime = decoded
+                    if ptype and "image" in ptype and not fname:
+                        fname = "image" + _ext_for_mime(dmime)
+                    out.append((fname or "upload", data, dmime))
+    return out
+
+
+def _ext_for_mime(mime):
+    """Best-effort file extension for a mime type (used for image filenames)."""
+    return {
+        "image/png": ".png", "image/jpeg": ".jpg", "image/gif": ".gif",
+        "image/webp": ".webp", "image/svg+xml": ".svg", "application/pdf": ".pdf",
+        "text/csv": ".csv", "text/plain": ".txt",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
+    }.get(mime, "")
+
+
+def upload_files(flow_id, files):
+    """Upload files to LangFlow's file API, returning their `file_path` strings.
+
+    POSTs each file as multipart/form-data (`file` field) to
+    `/api/v1/files/upload/{flow_id}` and parses the `UploadFileResponse`
+    `{flow_id, file_path}`. Best-effort: on any failure we log (stderr, no PII
+    — only the filename and the HTTP status, never file contents) and continue,
+    so a file hiccup never blocks the chat. Returns [] when nothing uploaded.
+    """
+    if not files:
+        return []
+    paths = []
+    for fname, data, ctype in files:
+        boundary = "----adapter-boundary-" + uuid.uuid4().hex
+        safe_name = (fname or "upload").replace('"', "")
+        disposition = (
+            f'--{boundary}\r\nContent-Disposition: form-data; name="file"; '
+            f'filename="{safe_name}"\r\nContent-Type: {ctype or "application/octet-stream"}'
+            f'\r\n\r\n'
+        ).encode("utf-8")
+        body = disposition + data + f"\r\n--{boundary}--\r\n".encode("utf-8")
+        req = urllib.request.Request(
+            f"{LANGFLOW_BASE_URL}/api/v1/files/upload/{flow_id}",
+            data=body,
+            headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=RUN_TIMEOUT) as resp:
+                up = json.loads(resp.read().decode("utf-8") or "{}")
+            fp = up.get("file_path") if isinstance(up, dict) else None
+            if isinstance(fp, str) and fp:
+                paths.append(fp)
+            else:
+                sys.stderr.write(f"[adapter] file upload no file_path for {safe_name}\n")
+        except urllib.error.HTTPError as exc:
+            sys.stderr.write(f"[adapter] file upload {safe_name} HTTP {exc.code}\n")
+        except Exception as exc:  # noqa: BLE001 - never block on a file
+            sys.stderr.write(f"[adapter] file upload {safe_name} failed: {exc}\n")
+    sys.stderr.flush()
+    return paths
+
+
+def parse_envelope(text):
+    """Best-effort parse of a §14 envelope from a flow output string.
+
+    Returns the envelope dict, or None when `text` is not a JSON object (e.g.
+    a plain human-readable answer). Used to surface pending_approval to the
+    user via a friendly prompt + `x_cosmic_approval` metadata.
+    """
+    if not isinstance(text, str) or not text:
+        return None
+    try:
+        obj = json.loads(text)
+    except (TypeError, ValueError):
+        return None
+    return obj if isinstance(obj, dict) else None
+
+
+def detect_approval_reply(user_text):
+    """Return the first `ar-approval-<uuid>` in `user_text`, or None.
+
+    When a human replies with an approval_ref, the adapter forwards the text
+    unchanged (the supervisor's resume path detects the ref and resumes the
+    paused checkpoint via `session_id`). This helper is used for debug logging
+    and is the symmetric counterpart of the supervisor's approval-ref emitter.
+    """
+    if not isinstance(user_text, str) or not user_text:
+        return None
+    match = APPROVAL_REF_RE.search(user_text)
+    return match.group(0) if match else None
+
+
+def render_approval(envelope):
+    """Render a pending_approval envelope for a human reader + metadata.
+
+    Returns `(prompt_text, x_cosmic_approval)` where `prompt_text` is a
+    friendly instruction (reply `approve <ref>` / `reject <ref>`) and
+    `x_cosmic_approval` is the structured `{status, approval_ref, action,
+    checkpoint_id}` object a future LibreChat plugin can render as a button.
+    Returns `(None, None)` when `envelope` is not a pending_approval envelope.
+    """
+    if not isinstance(envelope, dict) or envelope.get("status") != "pending_approval":
+        return None, None
+    ref = envelope.get("approval_ref", "") or ""
+    data = envelope.get("data") if isinstance(envelope.get("data"), dict) else {}
+    action = data.get("action") or envelope.get("intent") or "this action"
+    checkpoint = envelope.get("checkpoint_id") or data.get("checkpoint_id") or ""
+    tier = data.get("tier", "approval")
+    prompt = (
+        f"⏳ Awaiting approval for {action} (tier: {tier})."
+        + (f"\nReference: {ref}" if ref else "")
+        + "\nReply `approve " + ref + "` to proceed, or `reject " + ref + "` to cancel."
+    )
+    x_cosmic_approval = {
+        "status": "pending_approval",
+        "approval_ref": ref,
+        "action": action,
+        "checkpoint_id": checkpoint,
+    }
+    return prompt, x_cosmic_approval
+
+
+def run_flow(flow_id, text, session_id=None, files=None):
     """POST a string input to LangFlow's native run endpoint and return the JSON.
 
     `session_id` (when present) is forwarded so LangFlow persists the flow's
     memory/checkpoints under that id across turns. When absent, LangFlow mints a
-    fresh session per call (no cross-turn memory).
+    fresh session per call (no cross-turn memory). `files` (when present) is a
+    list of LangFlow file paths (as returned by `upload_files`); LangFlow's
+    `_validate_public_files` requires each to be `{flow_id}/{basename}`, which
+    the upload endpoint produces. The supervisor's File node receives them.
     """
     body = {"input_value": text, "input_type": "text", "output_type": "text"}
     if session_id:
         body["session_id"] = session_id
+    if files:
+        body["files"] = files
     data = json.dumps(body).encode("utf-8")
     req = urllib.request.Request(
         f"{LANGFLOW_BASE_URL}/api/v1/run/{flow_id}",
@@ -120,7 +335,7 @@ def run_flow(flow_id, text, session_id=None):
         return json.loads(resp.read().decode("utf-8"))
 
 
-def run_flow_stream(flow_id, text, session_id=None):
+def run_flow_stream(flow_id, text, session_id=None, files=None):
     """Stream a flow run from LangFlow, yielding (kind, text) tuples.
 
     LangFlow's streamed /run emits raw JSON-per-line (NOT `data:`-prefixed SSE),
@@ -132,11 +347,14 @@ def run_flow_stream(flow_id, text, session_id=None):
 
     add_message events carry CUMULATIVE message snapshots (the full message so
     far, not a delta), so the caller must diff against what it has already
-    forwarded to avoid echoing the same text twice.
+    forwarded to avoid echoing the same text twice. `files` is forwarded the
+    same way as in `run_flow`.
     """
     body = {"input_value": text, "input_type": "text", "output_type": "text", "stream": True}
     if session_id:
         body["session_id"] = session_id
+    if files:
+        body["files"] = files
     data = json.dumps(body).encode("utf-8")
     req = urllib.request.Request(
         f"{LANGFLOW_BASE_URL}/api/v1/run/{flow_id}?stream=true",
@@ -297,17 +515,27 @@ class Handler(BaseHTTPRequestHandler):
         # retains memory across the same LibreChat conversation thread. None when
         # LibreChat doesn't surface it (LangFlow then mints a per-call session).
         conversation_id = extract_conversation_id(payload, self.headers)
+        # Accept uploaded files: extract from the messages, upload to LangFlow's
+        # file API, and forward the resulting paths into the /run body. Best-effort
+        # — a file hiccup never blocks the chat (text-only fallback).
+        files = upload_files(flow_id, extract_files(payload.get("messages", [])))
+        if os.environ.get("ADAPTER_DEBUG") == "1":
+            sys.stderr.write(
+                "[adapter] files=%r conversationId=%r approval_reply=%r\n"
+                % (files, conversation_id, detect_approval_reply(user_text))
+            )
+            sys.stderr.flush()
 
         # Streaming path: forward LangFlow's streamed chunks to LibreChat as
         # OpenAI chat.completion.chunk SSE deltas AS THEY ARRIVE, so LibreChat
         # shows the "generating" state immediately and renders tokens the moment
         # the flow emits them (instead of blocking ~8s on the full /run).
         if payload.get("stream"):
-            return self._stream_completion(flow_id, user_text, conversation_id)
+            return self._stream_completion(flow_id, user_text, conversation_id, files)
 
         # Non-streaming path: block on the full /run, return one JSON object.
         try:
-            lf_resp = run_flow(flow_id, user_text, conversation_id)
+            lf_resp = run_flow(flow_id, user_text, conversation_id, files)
         except urllib.error.HTTPError as exc:
             body = exc.read()
             return self._send(exc.code, body or json.dumps({"error": {"message": "langflow error"}}).encode())
@@ -315,9 +543,15 @@ class Handler(BaseHTTPRequestHandler):
             return self._send_error(502, f"langflow unreachable: {exc}")
 
         content = extract_output_text(lf_resp)
+        # Surface a pending_approval envelope as a human-readable prompt + the
+        # structured `x_cosmic_approval` metadata (a future LibreChat plugin can
+        # render an approve/reject button from it). §14/§19.
+        prompt, x_cosmic_approval = render_approval(parse_envelope(content))
+        if prompt is not None:
+            content = prompt
         cid = f"chatcmpl-{int(time.time() * 1000)}"
         created = int(time.time())
-        body = json.dumps({
+        body = {
             "id": cid,
             "object": "chat.completion",
             "created": created,
@@ -326,17 +560,20 @@ class Handler(BaseHTTPRequestHandler):
                 {"index": 0, "message": {"role": "assistant", "content": content}, "finish_reason": "stop"}
             ],
             "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
-        })
-        return self._send(200, body.encode("utf-8"))
+        }
+        if x_cosmic_approval is not None:
+            body["x_cosmic_approval"] = x_cosmic_approval
+        return self._send(200, json.dumps(body).encode("utf-8"))
 
-    def _stream_completion(self, flow_id, user_text, conversation_id):
+    def _stream_completion(self, flow_id, user_text, conversation_id, files=None):
         """Stream LangFlow's /run output to LibreChat as OpenAI SSE chunks.
 
         LangFlow emits raw JSON-per-line add_message events carrying CUMULATIVE
         message snapshots, so we diff against what we've already forwarded and
         emit only the new characters as chat.completion.chunk deltas. The body is
         close-delimited (Connection: close) so the response ends cleanly after
-        [DONE] — see the protocol_version note on the Handler class.
+        [DONE] — see the protocol_version note on the Handler class. `files`
+        (uploaded-file paths) is forwarded into the /run body.
         """
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
@@ -369,7 +606,7 @@ class Handler(BaseHTTPRequestHandler):
         sent_text = ""
         try:
             write_chunk({"role": "assistant", "content": ""})
-            for kind, text in run_flow_stream(flow_id, user_text, conversation_id):
+            for kind, text in run_flow_stream(flow_id, user_text, conversation_id, files):
                 if not text:
                     continue
                 if kind == "end":
@@ -424,12 +661,20 @@ class Handler(BaseHTTPRequestHandler):
         instructions = payload.get("instructions") or ""
         conversation_id = extract_conversation_id(payload, self.headers)
         full_input = (instructions + "\n\n" if instructions else "") + input_text
+        # Accept uploaded files: the Responses API carries files as content parts
+        # on the `input` items; reuse the chat-completions extractor (it walks
+        # content parts the same way) on a synthesized messages list.
+        input_items = payload.get("input")
+        file_msgs = input_items if isinstance(input_items, list) else [
+            {"role": "user", "content": input_items if isinstance(input_items, list) else []}
+        ]
+        files = upload_files(flow_id, extract_files(file_msgs))
 
         if payload.get("stream"):
-            return self._stream_responses(flow_id, full_input, conversation_id)
+            return self._stream_responses(flow_id, full_input, conversation_id, files)
 
         try:
-            lf_resp = run_flow(flow_id, full_input, conversation_id)
+            lf_resp = run_flow(flow_id, full_input, conversation_id, files)
         except urllib.error.HTTPError as exc:
             body = exc.read()
             return self._send(exc.code, body or json.dumps({"error": {"message": "langflow error"}}).encode())
@@ -437,6 +682,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._send_error(502, f"langflow unreachable: {exc}")
 
         content = extract_output_text(lf_resp)
+        # Surface a pending_approval envelope as a friendly prompt + structured
+        # metadata under `response.metadata.x_cosmic_approval` (§14/§19).
+        prompt, x_cosmic_approval = render_approval(parse_envelope(content))
+        if prompt is not None:
+            content = prompt
         rid = f"resp_{int(time.time() * 1000)}"
         mid = f"msg_{int(time.time() * 1000)}"
         resp = {
@@ -454,9 +704,11 @@ class Handler(BaseHTTPRequestHandler):
             }],
             "usage": {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
         }
+        if x_cosmic_approval is not None:
+            resp["metadata"] = {"x_cosmic_approval": x_cosmic_approval}
         return self._send(200, json.dumps(resp).encode("utf-8"))
 
-    def _stream_responses(self, flow_id, full_input, conversation_id):
+    def _stream_responses(self, flow_id, full_input, conversation_id, files=None):
         """Emit the OpenAI Responses SSE event sequence for a streamed flow run.
 
         Event order: response.created -> response.in_progress ->
@@ -508,7 +760,7 @@ class Handler(BaseHTTPRequestHandler):
                 "part": {"type": "output_text", "text": "", "annotations": []},
             })
 
-            for kind, text in run_flow_stream(flow_id, full_input, conversation_id):
+            for kind, text in run_flow_stream(flow_id, full_input, conversation_id, files):
                 if not text:
                     continue
                 if kind == "end":

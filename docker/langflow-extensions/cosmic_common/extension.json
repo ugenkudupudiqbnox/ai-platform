@@ -1,0 +1,21 @@
+{
+  "$schema": "https://schemas.langflow.org/extension/v1.json",
+  "id": "cosmic-common",
+  "version": "0.1.0",
+  "name": "Cosmic Common",
+  "description": "Generic, reusable LangFlow custom components for the Cosmic AR Agent — document readers (Excel/CSV/PDF), a document classifier, an Excel normalizer, business-rule/validation/calculation engines, an invoice builder, a Zoho connector, an audit logger, a notification component, and checkpoint/state/configuration managers. These are the generic reusable layer that the AR-specific ar_common and ar_tools bundles compose (constitution §15).",
+  "lfx": {
+    "compat": ["1"]
+  },
+  "bundles": [
+    {
+      "name": "cosmic_common",
+      "path": "components/cosmic_common",
+      "display_name": "Cosmic Common",
+      "icon": "Boxes"
+    }
+  ],
+  "capabilities": {
+    "requiresCredentials": true
+  }
+}

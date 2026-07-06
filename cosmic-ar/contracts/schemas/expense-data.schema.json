@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cosmic-vikings/ar-agent/contracts/expense-data.schema.json",
+  "title": "ExpenseData",
+  "description": "AR adjustments — refunds, write-offs and credit notes — the expense-like entries that occur on the AR side (§19 dual-control). NOT vendor/AP expenses (§20 seed only).",
+  "x-contract-version": "1.0.0",
+  "x-status": "draft",
+  "x-since": "2026-07-06",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["trace_id", "tenant", "period", "total", "currency", "adjustments", "contract_version"],
+  "properties": {
+    "trace_id": {"type": "string", "minLength": 1},
+    "tenant": {"type": "string", "minLength": 1},
+    "period": {"$ref": "#/$defs/period"},
+    "total": {"type": "string", "pattern": "^-?\\d+\\.\\d{2}$", "description": "Net adjustments total, signed 2dp string (negative = net reduction)."},
+    "currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
+    "adjustments": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/adjustment"}
+    },
+    "by_type": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/type_breakdown"}
+    },
+    "approval_refs": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^ar-approval-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
+      "description": "Every adjustment requires ≥ approval tier (§19); refs to the authorizing approvals."
+    },
+    "generated_at": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"},
+    "contract_version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"}
+  },
+  "$defs": {
+    "period": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end"],
+      "properties": {
+        "start": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
+        "end": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"}
+      }
+    },
+    "adjustment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["adjustment_id", "type", "customer_ref", "amount", "currency", "reason_code", "posted_at", "approval_ref", "idempotency_key"],
+      "properties": {
+        "adjustment_id": {"type": "string", "minLength": 1},
+        "type": {"type": "string", "enum": ["refund", "write_off", "credit_note"]},
+        "customer_ref": {"type": "string", "minLength": 1, "description": "Customer id; no PII (§16)."},
+        "invoice_ref": {"type": "string", "minLength": 1, "description": "Invoice the adjustment applies to, when applicable."},
+        "amount": {"type": "string", "pattern": "^-?\\d+\\.\\d{2}$", "description": "Signed; refunds/write-offs are negative, credit notes may be negative."},
+        "currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
+        "reason_code": {"type": "string", "minLength": 1, "description": "Stable reason code (e.g. dispute, goods_returned, bad_debt)."},
+        "posted_at": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"},
+        "approval_ref": {"type": "string", "pattern": "^ar-approval-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
+        "idempotency_key": {"type": "string", "pattern": "^ar-idem:[a-z_]+:[a-z0-9_-]+:[a-z0-9_-]+$"}
+      }
+    },
+    "type_breakdown": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "amount", "count"],
+      "properties": {
+        "type": {"type": "string", "enum": ["refund", "write_off", "credit_note"]},
+        "amount": {"type": "string", "pattern": "^-?\\d+\\.\\d{2}$"},
+        "count": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

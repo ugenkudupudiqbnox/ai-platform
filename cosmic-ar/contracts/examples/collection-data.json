@@ -1,0 +1,44 @@
+{
+  "trace_id": "ar-trace-07f3a1d2",
+  "tenant": "cosmic-vikings-ksa",
+  "period": {
+    "start": "2026-07-01",
+    "end": "2026-07-06"
+  },
+  "total_collected": "16500.00",
+  "currency": "SAR",
+  "payments": [
+    {
+      "payment_id": "pay-zoho-PMT-5512",
+      "customer_ref": "cust-cv-0421",
+      "amount": "1500.00",
+      "method": "bank_transfer",
+      "posted_at": "2026-07-03T19:42:00Z",
+      "matched_invoice_ref": "INV-123",
+      "match_status": "matched"
+    },
+    {
+      "payment_id": "pay-zoho-PMT-5513",
+      "customer_ref": "cust-cv-0188",
+      "amount": "320.00",
+      "method": "card",
+      "posted_at": "2026-07-04T12:10:00Z",
+      "match_status": "unmatched"
+    }
+  ],
+  "matched_amount": "1500.00",
+  "unmatched_amount": "320.00",
+  "aging_buckets": [
+    {"bucket": "current", "amount": "320.00", "count": 1},
+    {"bucket": "1_30", "amount": "2100.00", "count": 3},
+    {"bucket": "31_60", "amount": "0.00", "count": 0},
+    {"bucket": "61_90", "amount": "0.00", "count": 0},
+    {"bucket": "91_plus", "amount": "0.00", "count": 0}
+  ],
+  "by_method": [
+    {"method": "bank_transfer", "amount": "1500.00", "count": 1},
+    {"method": "card", "amount": "320.00", "count": 1}
+  ],
+  "generated_at": "2026-07-06T09:14:55Z",
+  "contract_version": "1.0.0"
+}

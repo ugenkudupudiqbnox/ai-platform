@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cosmic-vikings/ar-agent/contracts/audit-record.schema.json",
+  "title": "AuditRecord",
+  "description": "Immutable audit record for an action that affects money or the ledger (§13). Append-only: correction is a new compensating entry, never an edit.",
+  "x-contract-version": "1.0.0",
+  "x-status": "draft",
+  "x-since": "2026-07-06",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["audit_id", "trace_id", "tenant", "actor", "action", "timestamp", "append_only", "contract_version"],
+  "properties": {
+    "audit_id": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
+    "trace_id": {"type": "string", "minLength": 1, "description": "Links to logs/traces (§12)."},
+    "tenant": {"type": "string", "minLength": 1},
+    "actor": {"type": "string", "minLength": 1, "description": "Keycloak sub from the SSO session (§13/§19)."},
+    "action": {"type": "string", "minLength": 1, "description": "What was done (e.g. gl.post, invoice.issue, refund.issue)."},
+    "timestamp": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$", "description": "When, UTC ISO-8601 (§13)."},
+    "append_only": {"const": true, "description": "Always true; correction is a new compensating entry (§13)."},
+    "approval_ref": {"type": "string", "pattern": "^ar-approval-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", "description": "Link to the §19 approval that authorized it."},
+    "idempotency_key": {"type": "string", "pattern": "^ar-idem:[a-z_]+:[a-z0-9_-]+:[a-z0-9_-]+$", "description": "For replay-safe reconciliation (§13)."},
+    "before": {"$ref": "#/$defs/state_delta", "description": "State before the action."},
+    "after": {"$ref": "#/$defs/state_delta", "description": "State after the action."},
+    "source_system": {"type": "string", "enum": ["zoho", "foodics"], "description": "Financial source of record (§13)."},
+    "source_ref": {"type": "string", "minLength": 1, "description": "Native source-system reference."},
+    "correlation_id": {"type": "string", "minLength": 1, "description": "Cross-record correlation (e.g. checkpoint_id)."},
+    "contract_version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"}
+  },
+  "$defs": {
+    "state_delta": {
+      "type": "object",
+      "additionalProperties": {"type": ["string", "number", "boolean", "null"]},
+      "description": "State delta — amounts (2dp strings) and status. Keys are action-specific (e.g. balance_due, status)."
+    }
+  }
+}

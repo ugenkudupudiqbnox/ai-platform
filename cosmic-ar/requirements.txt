@@ -1,0 +1,25 @@
+# Cosmic AR Agent — dependency list (documentation only)
+#
+# These packages are satisfied by the langflow image venv and are NOT
+# pip-installed by the inline bundles. The bundles mirror the ap_tools
+# precedent (pyproject.toml `dependencies = []`) and rely on packages already
+# present in the langflowai/langflow:1.10.1 image. Pinning here documents the
+# versions the agent targets; verify with:
+#   docker exec langflow python -c "import langgraph, langchain, sqlalchemy; print(...)"
+#
+# langgraph                ==1.2.6   # StateGraph[AgentState], BaseCheckpointSaver, MemorySaver (§8/§11)
+# langchain                ==1.3.10  # create_agent + BaseTool (Flow as Tool -> subflow tools) (§15)
+# langchain-core           ==1.4.8   # Message/tool primitives
+# sqlalchemy               >=2.0     # ar_agent.ar_checkpoints saver (§11)
+# requests                 >=2.31    # Zoho Books / FOODICS HTTP calls (ar_tools)
+# lfx                      ==1.0     # Component base, lfx.io / lfx.schema (§5)
+#
+# File Intake Flow parse deps (baked into docker/langflow/Dockerfile per
+# ADR-0004; the readers import them lazily so bundles load without a rebuild,
+# but Excel/PDF reading needs the rebuilt image at runtime). CSV uses stdlib.
+# openpyxl                 >=3.1,<4  # Excel (.xlsx/.xlsm/.xls) reader (cosmic_common.excel_reader)
+# pdfplumber               >=0.11,<0.12  # PDF text/table extraction (cosmic_common.pdf_reader)
+#
+# Future (build-phase) candidate — bake into docker/langflow/Dockerfile to
+# replace the custom SQLAlchemy saver with the upstream Postgres saver:
+#   langgraph-checkpoint-postgres

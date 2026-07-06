@@ -1,0 +1,15 @@
+{
+  "trace_id": "ar-trace-07f3a1d2",
+  "tenant": "cosmic-vikings-ksa",
+  "operation": "gl_post",
+  "http_status": 200,
+  "code": "AR_OK",
+  "idempotency_key": "ar-idem:gl_post:inv-123:7f3a1d2e",
+  "zoho_id": "zoho-pay-PMT-5512",
+  "zoho_ref": "PMT-5512",
+  "duplicate": false,
+  "raw_response_ref": "store://zoho-resp/2026/07/06/07f3a1d2-gl-post.json",
+  "attempted_at": "2026-07-06T09:22:45Z",
+  "attempts": 1,
+  "contract_version": "1.0.0"
+}

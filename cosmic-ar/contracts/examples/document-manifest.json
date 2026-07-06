@@ -1,0 +1,42 @@
+{
+  "manifest_id": "a1b2c3d4-1a2b-3c4d-5e6f-7890abcdef01",
+  "trace_id": "ar-trace-07f3a1d2",
+  "tenant": "cosmic-vikings-ksa",
+  "documents": [
+    {
+      "doc_id": "zoho-inv-INV-123",
+      "doc_type": "invoice",
+      "source": "zoho",
+      "source_ref": "INV-123",
+      "customer_ref": "cust-cv-0421",
+      "amount": "1500.00",
+      "currency": "SAR",
+      "posted_at": "2026-07-01T08:00:00Z",
+      "status": "open",
+      "fetched_at": "2026-07-06T09:14:35Z"
+    },
+    {
+      "doc_id": "foodics-rct-RCT-9087",
+      "doc_type": "receipt",
+      "source": "foodics",
+      "source_ref": "RCT-9087",
+      "customer_ref": "cust-cv-0421",
+      "amount": "1500.00",
+      "currency": "SAR",
+      "posted_at": "2026-07-03T19:42:00Z",
+      "status": "settled",
+      "fetched_at": "2026-07-06T09:14:36Z"
+    }
+  ],
+  "totals": {
+    "count": 2,
+    "sum": "3000.00"
+  },
+  "source_systems": ["zoho", "foodics"],
+  "period": {
+    "start": "2026-07-01",
+    "end": "2026-07-06"
+  },
+  "generated_at": "2026-07-06T09:14:40Z",
+  "contract_version": "1.0.0"
+}

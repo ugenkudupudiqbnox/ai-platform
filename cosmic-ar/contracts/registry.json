@@ -1,0 +1,128 @@
+{
+  "title": "Cosmic AR Agent — Contract Registry",
+  "description": "Index of every JSON contract version currently shipped. The single place to discover which contract versions are current. Each entry maps the contract name to its schema file, example file, semver version, status, and the date it was introduced. See docs/contracts.md for the human reference. This is a data file, not a JSON Schema.",
+  "x-registry-version": "1.0.0",
+  "x-since": "2026-07-06",
+  "contracts": {
+    "Envelope": {
+      "version": "1.0.0",
+      "schema": "schemas/envelope.schema.json",
+      "example": "examples/envelope.json",
+      "status": "draft",
+      "since": "2026-07-06",
+      "constitution_ref": "§14"
+    },
+    "WorkflowState": {
+      "version": "1.0.0",
+      "schema": "schemas/workflow-state.schema.json",
+      "example": "examples/workflow-state.json",
+      "status": "draft",
+      "since": "2026-07-06",
+      "constitution_ref": "§8/§11"
+    },
+    "DocumentManifest": {
+      "version": "1.0.0",
+      "schema": "schemas/document-manifest.schema.json",
+      "example": "examples/document-manifest.json",
+      "status": "draft",
+      "since": "2026-07-06",
+      "constitution_ref": "§2"
+    },
+    "RevenueData": {
+      "version": "1.0.0",
+      "schema": "schemas/revenue-data.schema.json",
+      "example": "examples/revenue-data.json",
+      "status": "draft",
+      "since": "2026-07-06",
+      "constitution_ref": "§2"
+    },
+    "CollectionData": {
+      "version": "1.0.0",
+      "schema": "schemas/collection-data.schema.json",
+      "example": "examples/collection-data.json",
+      "status": "draft",
+      "since": "2026-07-06",
+      "constitution_ref": "§2"
+    },
+    "ExpenseData": {
+      "version": "1.0.0",
+      "schema": "schemas/expense-data.schema.json",
+      "example": "examples/expense-data.json",
+      "status": "draft",
+      "since": "2026-07-06",
+      "constitution_ref": "§19"
+    },
+    "ValidationResult": {
+      "version": "1.0.0",
+      "schema": "schemas/validation-result.schema.json",
+      "example": "examples/validation-result.json",
+      "status": "draft",
+      "since": "2026-07-06",
+      "constitution_ref": "§9"
+    },
+    "CalculationResult": {
+      "version": "1.0.0",
+      "schema": "schemas/calculation-result.schema.json",
+      "example": "examples/calculation-result.json",
+      "status": "draft",
+      "since": "2026-07-06",
+      "constitution_ref": "§8"
+    },
+    "InvoiceData": {
+      "version": "1.0.0",
+      "schema": "schemas/invoice-data.schema.json",
+      "example": "examples/invoice-data.json",
+      "status": "draft",
+      "since": "2026-07-06",
+      "constitution_ref": "§2"
+    },
+    "ApprovalRequest": {
+      "version": "1.0.0",
+      "schema": "schemas/approval-request.schema.json",
+      "example": "examples/approval-request.json",
+      "status": "draft",
+      "since": "2026-07-06",
+      "constitution_ref": "§19"
+    },
+    "ApprovalResult": {
+      "version": "1.0.0",
+      "schema": "schemas/approval-result.schema.json",
+      "example": "examples/approval-result.json",
+      "status": "draft",
+      "since": "2026-07-06",
+      "constitution_ref": "§19"
+    },
+    "ZohoUploadResult": {
+      "version": "1.0.0",
+      "schema": "schemas/zoho-upload-result.schema.json",
+      "example": "examples/zoho-upload-result.json",
+      "status": "draft",
+      "since": "2026-07-06",
+      "constitution_ref": "§9/§10"
+    },
+    "AuditRecord": {
+      "version": "1.0.0",
+      "schema": "schemas/audit-record.schema.json",
+      "example": "examples/audit-record.json",
+      "status": "draft",
+      "since": "2026-07-06",
+      "constitution_ref": "§13"
+    },
+    "Notification": {
+      "version": "1.0.0",
+      "schema": "schemas/notification.schema.json",
+      "example": "examples/notification.json",
+      "status": "draft",
+      "since": "2026-07-06",
+      "constitution_ref": "§2/§19"
+    },
+    "ExecutionSummary": {
+      "version": "1.0.0",
+      "schema": "schemas/execution-summary.schema.json",
+      "example": "examples/execution-summary.json",
+      "status": "draft",
+      "since": "2026-07-06",
+      "constitution_ref": "§14"
+    }
+  }
+}

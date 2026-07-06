@@ -1,0 +1,802 @@
+{
+  "name": "ar_file_intake",
+  "description": "File Intake Flow — accepts an uploaded Excel/CSV/PDF, classifies, extracts metadata, validates, and builds a DocumentManifest (architecture §4 row 10; ADR-0004). The 10th AR subflow; routes from the supervisor's file-only classify path.",
+  "endpoint_name": null,
+  "id": null,
+  "is_component": false,
+  "last_tested_version": "1.10.1",
+  "tags": [
+    "ar",
+    "cosmic",
+    "intake"
+  ],
+  "data": {
+    "nodes": [
+      {
+        "data": {
+          "description": "Get chat inputs from the Playground.",
+          "display_name": "Chat Input",
+          "id": "ChatInput-ar001",
+          "node": {
+            "base_classes": [
+              "Message"
+            ],
+            "beta": false,
+            "conditional_paths": [],
+            "custom_fields": {},
+            "description": "Get chat inputs from the Playground.",
+            "display_name": "Chat Input",
+            "documentation": "",
+            "edited": false,
+            "field_order": [
+              "input_value",
+              "store_message",
+              "sender",
+              "sender_name",
+              "session_id",
+              "files"
+            ],
+            "frozen": false,
+            "icon": "MessagesSquare",
+            "legacy": false,
+            "lf_version": "1.10.1",
+            "metadata": {
+              "code_hash": "7a26c54d89ed",
+              "dependencies": {
+                "dependencies": [
+                  {
+                    "name": "lfx",
+                    "version": null
+                  }
+                ],
+                "total_dependencies": 1
+              },
+              "module": "lfx.components.input_output.chat.ChatInput"
+            },
+            "output_types": [],
+            "outputs": [
+              {
+                "allows_loop": false,
+                "cache": true,
+                "display_name": "Chat Message",
+                "group_outputs": false,
+                "method": "message_response",
+                "name": "message",
+                "selected": "Message",
+                "tool_mode": true,
+                "types": [
+                  "Message"
+                ],
+                "value": "__UNDEFINED__"
+              }
+            ],
+            "pinned": false,
+            "template": {
+              "_type": "Component",
+              "code": {
+                "advanced": true,
+                "dynamic": true,
+                "fileTypes": [],
+                "file_path": "",
+                "info": "",
+                "list": false,
+                "load_from_db": false,
+                "multiline": true,
+                "name": "code",
+                "password": false,
+                "placeholder": "",
+                "required": true,
+                "show": true,
+                "title_case": false,
+                "type": "code",
+                "value": "from lfx.base.data.utils import IMG_FILE_TYPES, TEXT_FILE_TYPES\nfrom lfx.base.io.chat import ChatComponent\nfrom lfx.inputs.inputs import BoolInput\nfrom lfx.io import (\n    DropdownInput,\n    FileInput,\n    MessageTextInput,\n    MultilineInput,\n    Output,\n)\nfrom lfx.schema.message import Message\nfrom lfx.utils.constants import (\n    MESSAGE_SENDER_AI,\n    MESSAGE_SENDER_NAME_USER,\n    MESSAGE_SENDER_USER,\n)\n\n\nclass ChatInput(ChatComponent):\n    display_name = \"Chat Input\"\n    description = \"Get chat inputs from the Playground.\"\n    documentation: str = \"https://docs.langflow.org/chat-input-and-output\"\n    icon = \"MessagesSquare\"\n    name = \"ChatInput\"\n    minimized = True\n\n    inputs = [\n        MultilineInput(\n            name=\"input_value\",\n            display_name=\"Input Text\",\n            value=\"\",\n            info=\"Message to be passed as input.\",\n            input_types=[],\n        ),\n        BoolInput(\n            name=\"should_store_message\",\n            display_name=\"Store Messages\",\n            info=\"Store the message in the history.\",\n            value=True,\n            advanced=True,\n        ),\n        DropdownInput(\n            name=\"sender\",\n            display_name=\"Sender Type\",\n            options=[MESSAGE_SENDER_AI, MESSAGE_SENDER_USER],\n            value=MESSAGE_SENDER_USER,\n            info=\"Type of sender.\",\n            advanced=True,\n        ),\n        MessageTextInput(\n            name=\"sender_name\",\n            display_name=\"Sender Name\",\n            info=\"Name of the sender.\",\n            value=MESSAGE_SENDER_NAME_USER,\n            advanced=True,\n        ),\n        MessageTextInput(\n            name=\"session_id\",\n            display_name=\"Session ID\",\n            info=\"The session ID of the chat. If empty, the current session ID parameter will be used.\",\n            advanced=True,\n        ),\n        MessageTextInput(\n            name=\"context_id\",\n            display_name=\"Context ID\",\n            info=\"The context ID of the chat. Adds an extra layer to the local memory.\",\n            value=\"\",\n            advanced=True,\n        ),\n        FileInput(\n            name=\"files\",\n            display_name=\"Files\",\n            file_types=TEXT_FILE_TYPES + IMG_FILE_TYPES,\n            info=\"Files to be sent with the message.\",\n            advanced=True,\n            is_list=True,\n            temp_file=True,\n        ),\n    ]\n    outputs = [\n        Output(display_name=\"Chat Message\", name=\"message\", method=\"message_response\"),\n    ]\n\n    async def message_response(self) -> Message:\n        # Ensure files is a list and filter out empty/None values\n        files = self.files if self.files else []\n        if files and not isinstance(files, list):\n            files = [files]\n        # Filter out None/empty values\n        files = [f for f in files if f is not None and f != \"\"]\n\n        session_id = self.session_id or self.graph.session_id or \"\"\n        message = await Message.create(\n            text=self.input_value,\n            sender=self.sender,\n            sender_name=self.sender_name,\n            session_id=session_id,\n            context_id=self.context_id,\n            files=files,\n        )\n        if session_id and isinstance(message, Message) and self.should_store_message:\n            stored_message = await self.send_message(\n                message,\n            )\n            self.message.value = stored_message\n            message = stored_message\n\n        self.status = message\n        return message\n"
+              },
+              "context_id": {
+                "_input_type": "MessageTextInput",
+                "advanced": true,
+                "display_name": "Context ID",
+                "dynamic": false,
+                "info": "The context ID of the chat. Adds an extra layer to the local memory.",
+                "input_types": [
+                  "Message"
+                ],
+                "list": false,
+                "list_add_label": "Add More",
+                "load_from_db": false,
+                "name": "context_id",
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "type": "str",
+                "value": ""
+              },
+              "files": {
+                "advanced": true,
+                "display_name": "Files",
+                "dynamic": false,
+                "fileTypes": [
+                  "csv",
+                  "json",
+                  "pdf",
+                  "txt",
+                  "md",
+                  "mdx",
+                  "yaml",
+                  "yml",
+                  "xml",
+                  "html",
+                  "htm",
+                  "docx",
+                  "py",
+                  "sh",
+                  "sql",
+                  "js",
+                  "ts",
+                  "tsx",
+                  "jpg",
+                  "jpeg",
+                  "png",
+                  "bmp",
+                  "image"
+                ],
+                "file_path": "",
+                "info": "Files to be sent with the message.",
+                "list": true,
+                "name": "files",
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "temp_file": true,
+                "title_case": false,
+                "trace_as_metadata": true,
+                "type": "file",
+                "value": ""
+              },
+              "input_value": {
+                "advanced": false,
+                "display_name": "Input Text",
+                "dynamic": false,
+                "info": "Message to be passed as input.",
+                "input_types": [],
+                "list": false,
+                "load_from_db": false,
+                "multiline": true,
+                "name": "input_value",
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "type": "str",
+                "value": "Hello"
+              },
+              "sender": {
+                "advanced": true,
+                "display_name": "Sender Type",
+                "dynamic": false,
+                "info": "Type of sender.",
+                "name": "sender",
+                "options": [
+                  "Machine",
+                  "User"
+                ],
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "trace_as_metadata": true,
+                "type": "str",
+                "value": "User"
+              },
+              "sender_name": {
+                "advanced": true,
+                "display_name": "Sender Name",
+                "dynamic": false,
+                "info": "Name of the sender.",
+                "input_types": [
+                  "Message"
+                ],
+                "list": false,
+                "load_from_db": false,
+                "name": "sender_name",
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "type": "str",
+                "value": "User"
+              },
+              "session_id": {
+                "advanced": true,
+                "display_name": "Session ID",
+                "dynamic": false,
+                "info": "The session ID of the chat. If empty, the current session ID parameter will be used.",
+                "input_types": [
+                  "Message"
+                ],
+                "list": false,
+                "load_from_db": false,
+                "name": "session_id",
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "type": "str",
+                "value": ""
+              },
+              "should_store_message": {
+                "_input_type": "BoolInput",
+                "advanced": true,
+                "display_name": "Store Messages",
+                "dynamic": false,
+                "info": "Store the message in the history.",
+                "list": false,
+                "name": "should_store_message",
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "trace_as_metadata": true,
+                "type": "bool",
+                "value": true
+              }
+            }
+          },
+          "selected_output": "message",
+          "type": "ChatInput"
+        },
+        "dragging": false,
+        "height": 234,
+        "id": "ChatInput-ar001",
+        "measured": {
+          "height": 234,
+          "width": 320
+        },
+        "position": {
+          "x": -600,
+          "y": 0
+        },
+        "positionAbsolute": {
+          "x": -600,
+          "y": 0
+        },
+        "selected": false,
+        "type": "genericNode"
+      },
+      {
+        "data": {
+          "description": "Accepts an uploaded Excel/CSV/PDF, identifies its report type, extracts metadata, validates it, and builds a DocumentManifest — with logging, retries, and checkpoints (constitution §4/§8/§9/§10/§11/§12).",
+          "display_name": "Cosmic AR File Intake Flow",
+          "id": "FileIntakeFlowComponent-ar001",
+          "node": {
+            "base_classes": [
+              "Message"
+            ],
+            "beta": false,
+            "conditional_paths": [],
+            "custom_fields": {},
+            "description": "Accepts an uploaded Excel/CSV/PDF, identifies its report type, extracts metadata, validates it, and builds a DocumentManifest — with logging, retries, and checkpoints (constitution §4/§8/§9/§10/§11/§12).",
+            "display_name": "Cosmic AR File Intake Flow",
+            "documentation": "",
+            "edited": false,
+            "field_order": [
+              "code",
+              "_type",
+              "user_input",
+              "model_name",
+              "files"
+            ],
+            "frozen": false,
+            "icon": "FileInput",
+            "legacy": false,
+            "lf_version": "1.10.1",
+            "metadata": {
+              "module": "components.ar_common.supervisor.SupervisorAgentComponent"
+            },
+            "output_types": [],
+            "outputs": [
+              {
+                "allows_loop": false,
+                "cache": true,
+                "display_name": "Intake Result",
+                "group_outputs": false,
+                "method": "run",
+                "name": "intake_output",
+                "selected": "Message",
+                "tool_mode": true,
+                "types": [
+                  "Message"
+                ],
+                "value": "__UNDEFINED__"
+              }
+            ],
+            "pinned": false,
+            "template": {
+              "_type": "Component",
+              "code": {
+                "_input_type": "CodeInput",
+                "advanced": true,
+                "dynamic": true,
+                "fileTypes": [],
+                "file_path": "",
+                "info": "",
+                "list": false,
+                "load_from_db": false,
+                "multiline": true,
+                "name": "code",
+                "password": false,
+                "placeholder": "",
+                "required": true,
+                "show": true,
+                "title_case": false,
+                "trace_as_metadata": true,
+                "type": "code",
+                "value": "\"\"\"Cosmic AR Agent — File Intake Flow component (constitution §8, architecture §4 row 10).\n\nThe File Intake Flow is the 10th AR subflow. It accepts an uploaded\nExcel/CSV/PDF, identifies its report type, extracts metadata, validates it,\nbuilds a ``DocumentManifest``, updates workflow state, and returns structured\nJSON — with logging (§12), retries (§10), and checkpoints (§11). It is the\n**single stateful orchestrator** for file ingestion, mirroring the supervisor:\nits responsibilities map to LangGraph nodes inside one ``lfx`` component.\n\nResponsibilities → LangGraph nodes:\n\n  ingest → detect_type → read (§10 retry) → extract_metadata → validate →\n  build_manifest → checkpoint → respond\n\n  - ingest          : bind ``trace_id``/``flow_id``/``tenant`` + timestamps;\n                      carry uploaded-file refs in **context** (not state — §8).\n  - detect_type     : dispatch by extension (.xlsx/.xls→excel, .csv→csv,\n                      .pdf→pdf); unknown → ``AR_UNCERTAIN`` (§4 fail-safe).   §4\n  - read            : instantiate the matching cosmic_common reader, call its\n                      output method inside the §10 retry/backoff loop, parse its\n                      §14 envelope. Read-only tier ⇒ exhausted → error (not\n                      pending_approval).                                  §10/§9\n  - extract_metadata: deterministic rules over rows/content → doc_type,\n                      customer_ref (id-only, §16), amount (2dp), currency,\n                      posted_at, source_ref. Classify via the reusable\n                      DocumentClassifier; below ``MIN_CONFIDENCE`` →\n                      ``AR_UNCERTAIN``.                                      §4/§15\n  - validate        : per-document field validation via the reusable\n                      ``validate_document`` (cosmic_common, §15). Invalid →\n                      ``AR_VALIDATION`` with per-field errors.              §9\n  - build_manifest  : assemble the ``DocumentManifest`` (manifest_id, documents,\n                      totals{count,sum}, source_systems, period, generated_at,\n                      contract_version). ``sum`` = Σ amounts to 2dp.       §8\n  - checkpoint      : record the manifest id as the audit ref (the manifest is\n                      the auditable artifact); InMemorySaver persists state. §11\n  - respond         : build the §14 envelope carrying ``data.manifest`` +\n                      ``data.audit_refs``.                                  §14\n\nCheckpointing uses the in-image ``InMemorySaver`` keyed by ``session_id``. This\nis the §11 **fallback**: non-durable (lost on worker recreate). Durable Postgres\ncheckpointing remains a documented build-phase step (see ADR-0004 and the\nconstitution §11 caveat — Langfuse tracing is currently off, so the checkpoint\nis the source of truth for resume).\n\nv1 notes (recorded in ADR-0004): detect_type/extract_metadata/validate are\ndeterministic (no LLM key required); ``model_name`` is a documented hook. The\nmanifest lives in the envelope ``data.manifest`` (NOT added to ``AgentState`` —\nno schema change; the supervisor ignores unknown data keys). The output method\n**never raises** (§5/§9): it catches at the boundary and returns an\n``AR_UNEXPECTED`` envelope.\n\"\"\"\n\nfrom __future__ import annotations\n\nimport dataclasses\nimport json\nimport os\nimport re\nimport time\nimport uuid\nfrom dataclasses import dataclass, field\nfrom decimal import Decimal, InvalidOperation\nfrom typing import Any, Optional, TypedDict\n\nfrom langgraph.checkpoint.memory import InMemorySaver\nfrom langgraph.graph import END, START, StateGraph\nfrom langgraph.runtime import Runtime\n\nfrom lfx.custom import Component\nfrom lfx.io import HandleInput, MessageTextInput, Output\nfrom lfx.schema import Message\n\n# --------------------------------------------------------------------------- #\n#  Constants & policy (v1). Tunables belong in Global Variables (§17) at build\n#  phase; these defaults are the v1 policy.\n# --------------------------------------------------------------------------- #\n\n# §4 fail-safe threshold for the deterministic classifier.\nMIN_CONFIDENCE: float = 0.6\n\n# §10 retry policy (mirrors the supervisor).\nMAX_ATTEMPTS: int = 3\nBACKOFF_BASE_S: float = 1.0\nBACKOFF_CAP_S: float = 30.0\n\nCONTRACT_VERSION: str = \"1.0.0\"\n\n# Field-name aliases for deterministic metadata extraction (lowercased keys).\nAMOUNT_KEYS = (\"amount\", \"total\", \"grand_total\", \"balance_due\", \"total_amount\",\n               \"amount_due\", \"net_total\", \"value\")\nCURRENCY_KEYS = (\"currency\", \"curr\", \"ccy\")\nDATE_KEYS = (\"posted_at\", \"invoice_date\", \"date\", \"posted_date\", \"txn_date\",\n             \"transaction_date\", \"receipt_date\")\nCUSTOMER_KEYS = (\"customer_ref\", \"customer_id\", \"customer\", \"cust_id\",\n                 \"customer_no\", \"account_id\")\nREF_KEYS = (\"source_ref\", \"invoice_number\", \"invoice_no\", \"receipt_no\",\n            \"receipt_id\", \"reference\", \"ref\", \"doc_no\", \"document_no\", \"id\")\nSTATUS_KEYS = (\"status\", \"state\", \"invoice_status\", \"payment_status\")\nSOURCE_KEYS = (\"source\", \"system\", \"source_system\")\n\nRE_AMOUNT_STR = re.compile(r\"^-?\\d+\\.\\d{2}$\")\n\n\n# --------------------------------------------------------------------------- #\n#  Run-scoped context (NOT checkpointed — §8 keeps raw inputs out of state).\n# --------------------------------------------------------------------------- #\n\n\nclass FileIntakeContext(TypedDict, total=False):\n    \"\"\"Per-run context passed to every node via ``Runtime[FileIntakeContext]``.\n\n    Durable, resumable state lives in ``FileIntakeState`` (checkpointed). These\n    are the transient inputs for one invocation; they are re-supplied on resume.\n    \"\"\"\n\n    user_input: str\n    files: list[Any]  # uploaded-file refs from the canvas File node\n    actor: str  # Keycloak sub (§13); empty when unattributed\n    session_id: str  # checkpoint thread id (adapter's conversationId)\n    tenant: str\n    flow_id: str\n    model_name: str  # documented LLM hook (deterministic v1 ignores it)\n\n\n# --------------------------------------------------------------------------- #\n#  Typed state (constitution §8).\n# --------------------------------------------------------------------------- #\n\n\n@dataclass(frozen=True)\nclass FileIntakeState:\n    \"\"\"The File Intake Flow's typed state (§8).\n\n    Immutable dataclass — nodes return partial-update dicts; LangGraph merges.\n    The manifest is the auditable artifact; working file-plan/raw-docs are\n    transient derived data (not raw inputs).\n    \"\"\"\n\n    trace_id: str\n    flow_id: str\n    tenant: str\n    status: str = \"created\"  # created|typed|read|extracted|validated|built|completed|failed\n    error: Optional[dict[str, str]] = None  # {\"code\": \"AR_*\", \"message\": \"...\"} (§9)\n    created_at: str = \"\"\n    updated_at: str = \"\"\n    # Derived working data (per-file plan + raw reader output).\n    file_plan: list = field(default_factory=list)  # [{name, path, kind}]\n    raw_docs: list = field(default_factory=list)  # [{name, kind, content}]\n    # Extracted documents conforming to DocumentManifest.document.\n    documents: list = field(default_factory=list)\n    manifest: Optional[dict] = None\n    audit_refs: list = field(default_factory=list)\n\n\ndef _state_to_dict(state: Any) -> dict:\n    \"\"\"Coerce a ``FileIntakeState`` (or dict) snapshot to a plain dict.\n\n    ``graph.get_state().values`` is normally already a dict, but defend against\n    a dataclass sneaking through (e.g. a future LangGraph version) so the\n    envelope builder never raises on attribute-vs-key access.\n    \"\"\"\n    if isinstance(state, dict):\n        return state\n    if hasattr(state, \"__dataclass_fields__\"):\n        from dataclasses import asdict\n        return asdict(state)\n    return {}\n\n\n# --------------------------------------------------------------------------- #\n#  Pure helpers (testable without LangFlow/LangGraph).\n# --------------------------------------------------------------------------- #\n\n\ndef _to_str(value: Any) -> str:\n    \"\"\"Coerce an lfx input value (str / Message / None) to a plain string.\"\"\"\n    if value is None:\n        return \"\"\n    text = getattr(value, \"text\", None)\n    if text is not None:\n        return str(text)\n    return str(value)\n\n\ndef _as_list(value: Any) -> list[Any]:\n    \"\"\"Coerce a HandleInput value (single / list / None) to a list.\"\"\"\n    if value is None:\n        return []\n    if isinstance(value, (list, tuple)):\n        return list(value)\n    return [value]\n\n\ndef utc_now() -> str:\n    \"\"\"UTC ISO-8601 ``YYYY-MM-DDTHH:MM:SSZ`` (contracts' timestamp pattern).\"\"\"\n    return time.strftime(\"%Y-%m-%dT%H:%M:%SZ\", time.gmtime())\n\n\ndef mint_id() -> str:\n    \"\"\"A fresh lowercase uuid4 string (trace_id / manifest_id).\"\"\"\n    return str(uuid.uuid4())\n\n\ndef parse_envelope(text: str) -> Optional[dict[str, Any]]:\n    \"\"\"Best-effort parse of a §14 envelope from a reader/tool output string.\"\"\"\n    if not text:\n        return None\n    try:\n        obj = json.loads(text)\n    except (TypeError, ValueError):\n        return None\n    return obj if isinstance(obj, dict) else None\n\n\ndef _envelope(status: str, code: str, data: Optional[dict] = None,\n              error: Optional[dict] = None, trace_id: str = \"\") -> dict[str, Any]:\n    \"\"\"Build a §14 envelope dict.\"\"\"\n    env: dict[str, Any] = {\"status\": status, \"code\": code, \"data\": data or {},\n                           \"trace_id\": trace_id}\n    if error:\n        env[\"error\"] = error\n    return env\n\n\ndef detect_type(filename: str) -> str:\n    \"\"\"Identify the report type by file extension (architecture §4 row 10).\n\n    Returns ``\"excel\"``/``\"csv\"``/``\"pdf\"``/``\"unknown\"``. Unknown extensions fail\n    safe (§4) at the ``detect_type`` node → ``AR_UNCERTAIN``.\n    \"\"\"\n    name = (filename or \"\").lower()\n    if name.endswith(\".xlsx\") or name.endswith(\".xlsm\") or name.endswith(\".xls\"):\n        return \"excel\"\n    if name.endswith(\".csv\") or name.endswith(\".tsv\"):\n        return \"csv\"\n    if name.endswith(\".pdf\"):\n        return \"pdf\"\n    return \"unknown\"\n\n\ndef _basename(path: str) -> str:\n    return os.path.basename(path or \"\") or path or \"file\"\n\n\ndef _normalize_file(ref: Any) -> dict[str, str]:\n    \"\"\"Coerce a canvas File-node ref to ``{name, path}``.\n\n    Tolerant of the LangFlow File node's Data shape (a Data with ``.file`` /\n    ``.data`` dicts, a plain dict, or a bare path string). Returns\n    ``{name:\"\", path:\"\"}`` when nothing usable is found — the caller fails safe.\n    \"\"\"\n    if ref is None:\n        return {\"name\": \"\", \"path\": \"\"}\n    # Bare string → path.\n    if isinstance(ref, str):\n        return {\"name\": _basename(ref), \"path\": ref}\n    # Data object (lfx) — try common attribute shapes.\n    data_attr = getattr(ref, \"data\", None)\n    file_attr = getattr(ref, \"file\", None)\n    file_path_attr = getattr(ref, \"file_path\", None)\n    candidates: list[dict] = []\n    if isinstance(data_attr, dict):\n        candidates.append(data_attr)\n    if isinstance(file_attr, dict):\n        candidates.append(file_attr)\n    if isinstance(ref, dict):\n        candidates.append(ref)\n    for c in candidates:\n        path = c.get(\"file_path\") or c.get(\"path\") or \"\"\n        name = c.get(\"file_name\") or c.get(\"name\") or c.get(\"filename\") or \"\"\n        if path:\n            return {\"name\": name or _basename(path), \"path\": path}\n    if isinstance(file_path_attr, str) and file_path_attr:\n        return {\"name\": _basename(file_path_attr), \"path\": file_path_attr}\n    # Last resort: look for any string-valued key ending in _path/path on the obj.\n    for attr in (\"file_path\", \"path\", \"file\"):\n        v = getattr(ref, attr, None)\n        if isinstance(v, str) and v:\n            return {\"name\": _basename(v), \"path\": v}\n    return {\"name\": \"\", \"path\": \"\"}\n\n\ndef _expand_files(files: Any) -> list:\n    \"\"\"Flatten a ``files`` input into individual refs.\n\n    The ``files`` HandleInput may receive a list of Data/strings (from the\n    canvas File node or an API upload) or a LangFlow ``Message`` carrying\n    ``.files`` (when ChatInput routes the API-uploaded files onto the Message).\n    Expand any Message into its ``.files`` list so the caller normalises one ref\n    per uploaded file. None/empty entries are dropped.\n    \"\"\"\n    if files is None:\n        return []\n    if not isinstance(files, list):\n        files = [files]\n    out: list = []\n    for ref in files:\n        if ref is None or ref == \"\":\n            continue\n        msg_files = getattr(ref, \"files\", None)\n        if isinstance(msg_files, list) and msg_files and not isinstance(ref, str):\n            out.extend(f for f in msg_files if f is not None and f != \"\")\n        else:\n            out.append(ref)\n    return out\n\n\ndef _resolve_storage_path(path: str) -> str:\n    \"\"\"Resolve a LangFlow uploaded-file path to a real container filesystem path.\n\n    LangFlow's file API stores uploads at ``{config_dir}/{flow_id}/{name}`` and\n    returns the relative ``{flow_id}/{name}`` (a 2-segment storage path). The\n    cosmic_common readers open a real path, so prefix relative storage paths\n    with ``LANGFLOW_CONFIG_DIR``. Absolute paths and bare filenames pass through\n    unchanged (the readers will surface ``AR_VALIDATION`` if they cannot open).\n    \"\"\"\n    if not path or os.path.isabs(path):\n        return path\n    # LangFlow local-storage path shape: \"<flow_id>/<filename>\" (2 segments).\n    if \"/\" in path and path.count(\"/\") == 1:\n        cfg = os.environ.get(\"LANGFLOW_CONFIG_DIR\", \"\")\n        if cfg:\n            return os.path.join(cfg, path)\n    return path\n\n\ndef _rows_from_content(content: Any) -> list[dict]:\n    \"\"\"Extract a list of dict rows from a reader envelope's ``data``.\n\n    Readers return dict rows (when ``has_header``) or list rows (otherwise);\n    normalise to list[dict] for field lookup. PDFs (``pages``/``tables``) are\n    flattened to single-row dicts keyed by a synthetic ``text`` field.\n    \"\"\"\n    if not isinstance(content, dict):\n        return []\n    rows = content.get(\"rows\")\n    if isinstance(rows, list):\n        out: list[dict] = []\n        for r in rows:\n            if isinstance(r, dict):\n                out.append({str(k): str(v) for k, v in r.items()})\n            elif isinstance(r, list):\n                out.append({f\"col{i}\": (\"\" if c is None else str(c))\n                            for i, c in enumerate(r)})\n        return out\n    pages = content.get(\"pages\")\n    if isinstance(pages, list):\n        text = \" \".join(str(p.get(\"text\", \"\")) for p in pages\n                        if isinstance(p, dict))\n        return [{\"text\": text}] if text else []\n    tables = content.get(\"tables\")\n    if isinstance(tables, list):\n        out = []\n        for tbl in tables:\n            if not isinstance(tbl, dict):\n                continue\n            for row in tbl.get(\"rows\", []):\n                if isinstance(row, list):\n                    out.append({f\"col{i}\": (\"\" if c is None else str(c))\n                                for i, c in enumerate(row)})\n        return out\n    return []\n\n\ndef _text_from_content(content: Any) -> str:\n    \"\"\"Flatten reader content to a single lowercased text blob for classification.\"\"\"\n    if not isinstance(content, dict):\n        return \"\"\n    parts: list[str] = []\n    rows = content.get(\"rows\")\n    if isinstance(rows, list):\n        for r in rows:\n            if isinstance(r, dict):\n                parts.extend(str(v) for v in r.values())\n            elif isinstance(r, list):\n                parts.extend(str(c) for c in r)\n            else:\n                parts.append(str(r))\n    for key in (\"pages\", \"tables\"):\n        coll = content.get(key)\n        if isinstance(coll, list):\n            for item in coll:\n                if isinstance(item, dict):\n                    if \"text\" in item:\n                        parts.append(str(item[\"text\"]))\n                    for row in item.get(\"rows\", []) or []:\n                        if isinstance(row, list):\n                            parts.extend(str(c) for c in row)\n    return \" \".join(parts).lower()\n\n\ndef _first_value(rows: list[dict], keys: tuple[str, ...]) -> str:\n    \"\"\"Find the first non-empty value for any of ``keys`` across all rows.\n\n    Keys are matched case-insensitively and also against normalised forms\n    (spaces→underscores). Returns ``\"\"`` when not found.\n    \"\"\"\n    if not rows:\n        return \"\"\n    lowered = {k.lower() for k in keys}\n    for row in rows:\n        for rk, rv in row.items():\n            if rk.lower().replace(\" \", \"_\") in lowered:\n                if rv and str(rv).strip():\n                    return str(rv).strip()\n    return \"\"\n\n\ndef _parse_ts(value: str) -> str:\n    \"\"\"Best-effort parse of a date/datetime string to ISO-8601 UTC.\n\n    Accepts ``YYYY-MM-DD``, ``YYYY-MM-DDTHH:MM:SSZ``, ``YYYY/MM/DD``. Date-only\n    inputs become midnight UTC. Unparseable/empty → ``utc_now()``.\n    \"\"\"\n    s = (value or \"\").strip()\n    if not s:\n        return utc_now()\n    s = s.replace(\"/\", \"-\")\n    # Already a full timestamp?\n    m = re.match(r\"^(\\d{4})-(\\d{2})-(\\d{2})[T ](\\d{2}):(\\d{2}):(\\d{2})\", s)\n    if m:\n        return f\"{m.group(1)}-{m.group(2)}-{m.group(3)}T{m.group(4)}:{m.group(5)}:{m.group(6)}Z\"\n    m = re.match(r\"^(\\d{4})-(\\d{2})-(\\d{2})\", s)\n    if m:\n        return f\"{m.group(1)}-{m.group(2)}-{m.group(3)}T00:00:00Z\"\n    return utc_now()\n\n\ndef _to_2dp(value: Any) -> str:\n    \"\"\"Coerce a numeric string to a signed 2dp string; ``\"0.00\"`` on failure.\"\"\"\n    if value is None or value == \"\":\n        return \"0.00\"\n    s = str(value).strip().replace(\",\", \"\")  # strip thousands separators\n    try:\n        d = Decimal(s)\n    except (InvalidOperation, ValueError):\n        # Try to extract a leading number (e.g. \"SAR 1,234.50\").\n        m = re.search(r\"-?\\d+(\\.\\d+)?\", s)\n        if not m:\n            return \"0.00\"\n        try:\n            d = Decimal(m.group(0))\n        except (InvalidOperation, ValueError):\n            return \"0.00\"\n    return f\"{d.quantize(Decimal('0.01'))}\"\n\n\ndef _sum_2dp(amounts: list[str]) -> str:\n    \"\"\"Sum a list of 2dp-string amounts to a 2dp string (producer-side check).\"\"\"\n    total = Decimal(\"0.00\")\n    for a in amounts:\n        try:\n            total += Decimal(a)\n        except (InvalidOperation, ValueError):\n            continue\n    return f\"{total.quantize(Decimal('0.01'))}\"\n\n\ndef _detect_source(text: str, rows: list[dict]) -> str:\n    \"\"\"Detect the source system: explicit column > keyword heuristic > default.\"\"\"\n    explicit = _first_value(rows, SOURCE_KEYS).lower()\n    if explicit in (\"zoho\", \"foodics\"):\n        return explicit\n    if \"foodics\" in text or \"pos receipt\" in text:\n        return \"foodics\"\n    return \"zoho\"\n\n\ndef _extract_doc_fields(raw_doc: dict, doc_type: str) -> dict[str, str]:\n    \"\"\"Pure metadata extraction: build one ``DocumentManifest.document`` dict.\n\n    Deterministic rules over the reader's rows/content. ``customer_ref`` is\n    id-only (§16 — no PII). All fields are strings per the schema. Amounts are\n    2dp strings. ``fetched_at`` is always ``utc_now()`` (the moment we read it).\n    \"\"\"\n    content = raw_doc.get(\"content\") if isinstance(raw_doc, dict) else None\n    rows = _rows_from_content(content)\n    text = _text_from_content(content)\n    name = raw_doc.get(\"name\", \"\") if isinstance(raw_doc, dict) else \"\"\n    stem = os.path.splitext(_basename(name))[0] or \"doc\"\n    source = _detect_source(text, rows)\n    source_ref = _first_value(rows, REF_KEYS) or stem\n    doc_id = f\"{source}:{source_ref}\"\n    customer_ref = _first_value(rows, CUSTOMER_KEYS) or \"CUST-UNKNOWN\"\n    currency = (_first_value(rows, CURRENCY_KEYS) or \"USD\").upper()\n    if not re.match(r\"^[A-Z]{3}$\", currency):\n        currency = \"USD\"\n    amount = _to_2dp(_first_value(rows, AMOUNT_KEYS))\n    posted_at = _parse_ts(_first_value(rows, DATE_KEYS))\n    status = _first_value(rows, STATUS_KEYS) or \"open\"\n    return {\n        \"doc_id\": doc_id,\n        \"doc_type\": doc_type,\n        \"source\": source,\n        \"source_ref\": source_ref,\n        \"customer_ref\": customer_ref,\n        \"amount\": amount,\n        \"currency\": currency,\n        \"posted_at\": posted_at,\n        \"status\": status,\n        \"fetched_at\": utc_now(),\n    }\n\n\ndef build_manifest(documents: list[dict], trace_id: str, tenant: str) -> dict:\n    \"\"\"Assemble a ``DocumentManifest`` dict from validated documents (pure).\n\n    ``totals.sum`` = Σ document amounts to 2dp (producer-side computation — the\n    supervisor never computes financial amounts; intake does only this one sum\n    because the manifest contract requires it). ``source_systems`` is the\n    distinct set of sources. ``period`` is the min/max ``posted_at`` date.\n    \"\"\"\n    amounts = [d.get(\"amount\", \"0.00\") for d in documents\n              if isinstance(d, dict)]\n    count = len(documents)\n    total_sum = _sum_2dp(amounts)\n    source_systems = sorted({d.get(\"source\", \"\") for d in documents\n                            if isinstance(d, dict) and d.get(\"source\")})\n    dates = sorted(d.get(\"posted_at\", \"\")[:10] for d in documents\n                   if isinstance(d, dict) and d.get(\"posted_at\"))\n    dates = [d for d in dates if re.match(r\"^\\d{4}-\\d{2}-\\d{2}$\", d)]\n    period = {\"start\": dates[0], \"end\": dates[-1]} if dates else None\n    manifest: dict[str, Any] = {\n        \"manifest_id\": mint_id(),\n        \"trace_id\": trace_id,\n        \"tenant\": tenant,\n        \"documents\": documents,\n        \"totals\": {\"count\": count, \"sum\": total_sum},\n        \"source_systems\": source_systems,\n        \"contract_version\": CONTRACT_VERSION,\n        \"generated_at\": utc_now(),\n    }\n    if period:\n        manifest[\"period\"] = period\n    return manifest\n\n\n# --------------------------------------------------------------------------- #\n#  §10 retry classification (mirrors supervisor._is_transient).\n# --------------------------------------------------------------------------- #\n\n\ndef _is_transient(exc: BaseException) -> bool:\n    \"\"\"§10: classify an exception as transient (retryable) vs hard.\"\"\"\n    name = type(exc).__name__.lower()\n    if any(k in name for k in (\"timeout\", \"connection\", \"temporary\", \"unreachable\")):\n        return True\n    code = getattr(exc, \"code\", None)\n    if isinstance(code, int) and (code >= 500 or code in (408, 429)):\n        return True\n    return False\n\n\ndef _backoff_sleep(attempt: int) -> None:\n    \"\"\"§10 exponential backoff with ±25% jitter (attempt-parity), capped 30s.\"\"\"\n    delay = min(BACKOFF_CAP_S, BACKOFF_BASE_S * (2 ** (attempt - 1)))\n    jitter = delay * 0.25\n    slept = delay + (jitter if attempt % 2 else -jitter)\n    time.sleep(max(0.0, slept))\n\n\ndef _read_with_retry(reader: Any, file_path: str, kind: str,\n                     trace_id: str) -> dict[str, Any]:\n    \"\"\"Call a reader's ``read()`` inside the §10 retry/backoff loop.\n\n    Returns a §14 envelope dict (``data`` carries the reader's rows/pages).\n    Reader error envelopes (``AR_VALIDATION`` / ``AR_NOT_IMPLEMENTED``) are HARD\n    (file-not-found / corrupt / dep-missing) → no retry, surface as ``error``.\n    A reader that *raises* a transient exception is retried; exhausted transient\n    retries → ``error`` (intake is read-only, NOT ``pending_approval``).\n    \"\"\"\n    last_exc: Optional[BaseException] = None\n    for attempt in range(1, MAX_ATTEMPTS + 1):\n        try:\n            raw = reader.read()\n            envelope = parse_envelope(_to_str(raw))\n            if envelope is None:\n                envelope = _envelope(\"error\", \"AR_UPSTREAM\",\n                                      error={\"message\": \"reader returned no envelope\"},\n                                      trace_id=trace_id)\n            return envelope\n        except Exception as exc:  # noqa: BLE001 — classified below, never raised\n            last_exc = exc\n            if not _is_transient(exc):\n                return _envelope(\"error\", \"AR_VALIDATION\",\n                                 error={\"message\": f\"{kind} read failed: {exc}\"},\n                                 trace_id=trace_id)\n            if attempt < MAX_ATTEMPTS:\n                _backoff_sleep(attempt)\n    return _envelope(\"error\", \"AR_UPSTREAM\",\n                     error={\"message\": f\"transient retries exhausted: {last_exc}\"},\n                     trace_id=trace_id)\n\n\ndef _make_reader(kind: str, file_path: str) -> Any:\n    \"\"\"Instantiate the matching cosmic_common reader and bind its file_path.\n\n    Lazy import so the module imports cleanly even before the Dockerfile rebuild\n    (openpyxl/pdfplumber may be absent). Returns None if the bundle/dep is\n    unavailable — the caller surfaces ``AR_NOT_IMPLEMENTED``.\n    \"\"\"\n    if kind == \"csv\":\n        from components.cosmic_common.csv_reader import CSVReaderComponent\n        r = CSVReaderComponent()\n        r.file_path = file_path\n        r.has_header = True\n        return r\n    if kind == \"excel\":\n        from components.cosmic_common.excel_reader import ExcelReaderComponent\n        r = ExcelReaderComponent()\n        r.file_path = file_path\n        r.has_header = True\n        return r\n    if kind == \"pdf\":\n        from components.cosmic_common.pdf_reader import PDFReaderComponent\n        r = PDFReaderComponent()\n        r.file_path = file_path\n        r.extract_tables = False\n        return r\n    return None\n\n\ndef _classify_doc(raw_doc: dict, min_confidence: float) -> tuple[str, float]:\n    \"\"\"Classify a single document via the reusable DocumentClassifier (§15).\n\n    Returns ``(doc_type, confidence)``. ``doc_type`` is one of\n    invoice/receipt/credit_note/payment or ``unknown``. The classifier is lazy-\n    imported; on import failure we fall back to ``unknown`` @ 0.0 (→ AR_UNCERTAIN).\n    \"\"\"\n    content_ref = json.dumps(raw_doc.get(\"content\") or {})\n    document_ref = raw_doc.get(\"name\", \"doc\")\n    try:\n        from components.cosmic_common.document_classifier import (\n            DocumentClassifierComponent, _extract_text, RULES,\n        )\n    except ImportError:\n        # Fall back to an inline keyword score so intake still fails safe.\n        text = _text_from_content(raw_doc.get(\"content\"))\n        best, best_score = \"unknown\", 0\n        import re as _re\n        for cand, rules in RULES.items():\n            score = sum(w for pat, w in rules if _re.search(pat, text))\n            if score > best_score:\n                best, best_score = cand, score\n        conf = 1.0 if best_score > 0 and best != \"unknown\" else 0.0\n        return best, conf\n    try:\n        clf = DocumentClassifierComponent()\n        # Set every input the classifier reads (don't rely on lfx applying\n        # input defaults — robust whether or not the base class populates them).\n        clf.document_ref = document_ref\n        clf.content_ref = content_ref\n        clf.candidate_types = \"\"  # blank → default candidates (all four types)\n        clf.rules_ref = \"\"\n        clf.min_confidence = min_confidence\n        env = parse_envelope(_to_str(clf.classify())) or {}\n    except Exception:  # noqa: BLE001 — never raise from a node helper\n        return \"unknown\", 0.0\n    data = env.get(\"data\") if isinstance(env, dict) else {}\n    data = data if isinstance(data, dict) else {}\n    doc_type = data.get(\"doc_type\", \"unknown\")\n    confidence = float(data.get(\"confidence\", 0.0) or 0.0)\n    return doc_type, confidence\n\n\n# --------------------------------------------------------------------------- #\n#  LangGraph nodes.\n# --------------------------------------------------------------------------- #\n\n\ndef _ctx(runtime: Runtime[FileIntakeContext]) -> FileIntakeContext:\n    return runtime.context or {}\n\n\ndef _node_ingest(state: FileIntakeState,\n                 runtime: Runtime[FileIntakeContext]) -> dict:\n    ctx = _ctx(runtime)\n    now = utc_now()\n    return {\n        \"trace_id\": state.trace_id or mint_id(),\n        \"flow_id\": state.flow_id or ctx.get(\"flow_id\", \"ar_file_intake\"),\n        \"tenant\": state.tenant or ctx.get(\"tenant\", \"cosmic-vikings\"),\n        \"status\": \"created\",\n        \"created_at\": state.created_at or now,\n        \"updated_at\": now,\n    }\n\n\ndef _node_detect_type(state: FileIntakeState,\n                      runtime: Runtime[FileIntakeContext]) -> dict:\n    ctx = _ctx(runtime)\n    files = _expand_files(ctx.get(\"files\", []))\n    plan: list[dict] = []\n    unknowns: list[str] = []\n    for ref in files:\n        norm = _normalize_file(ref)\n        path = _resolve_storage_path(norm[\"path\"])\n        name = norm[\"name\"]\n        if not path:\n            unknowns.append(name or \"(no path)\")\n            continue\n        kind = detect_type(name or path)\n        if kind == \"unknown\":\n            unknowns.append(name or path)\n            continue\n        plan.append({\"name\": name, \"path\": path, \"kind\": kind})\n    if unknowns or not plan:\n        # §4 fail-safe: unknown extension or no usable file → AR_UNCERTAIN.\n        msg = \"unknown file type\" if unknowns else \"no files supplied\"\n        if unknowns:\n            msg = f\"unknown file type for: {', '.join(unknowns)}\"\n        return {\"file_plan\": plan, \"status\": \"failed\",\n                \"error\": {\"code\": \"AR_UNCERTAIN\", \"message\": msg},\n                \"updated_at\": utc_now()}\n    return {\"file_plan\": plan, \"status\": \"typed\", \"updated_at\": utc_now()}\n\n\ndef _after_detect(state: FileIntakeState) -> str:\n    # Path-map keys are the node success statuses (\"failed\"/\"typed\"); returning\n    # state.status routes \"failed\"→respond and \"typed\"→read. Returning a node\n    # name here would KeyError against the path map.\n    return state.status\n\n\ndef _node_read(state: FileIntakeState,\n               runtime: Runtime[FileIntakeContext]) -> dict:\n    ctx = _ctx(runtime)\n    _ = ctx\n    raw_docs: list[dict] = []\n    failures: list[str] = []\n    for entry in state.file_plan:\n        kind = entry.get(\"kind\", \"\")\n        path = entry.get(\"path\", \"\")\n        name = entry.get(\"name\", \"\")\n        try:\n            reader = _make_reader(kind, path)\n        except Exception as exc:  # noqa: BLE001 — dep/import failure is hard\n            failures.append(f\"{name}: reader unavailable ({exc})\")\n            continue\n        if reader is None:\n            failures.append(f\"{name}: no reader for kind '{kind}'\")\n            continue\n        envelope = _read_with_retry(reader, path, kind, state.trace_id)\n        status = envelope.get(\"status\")\n        if status == \"ok\":\n            data = envelope.get(\"data\") if isinstance(envelope, dict) else {}\n            raw_docs.append({\"name\": name, \"kind\": kind,\n                             \"content\": data if isinstance(data, dict) else {}})\n        else:\n            err = envelope.get(\"error\") or {}\n            msg = err.get(\"message\", \"read failed\") if isinstance(err, dict) \\\n                else \"read failed\"\n            failures.append(f\"{name}: {msg}\")\n    if failures or not raw_docs:\n        msg = \"; \".join(failures) if failures else \"no files readable\"\n        return {\"raw_docs\": raw_docs, \"status\": \"failed\",\n                \"error\": {\"code\": \"AR_VALIDATION\", \"message\": msg},\n                \"updated_at\": utc_now()}\n    return {\"raw_docs\": raw_docs, \"status\": \"read\", \"updated_at\": utc_now()}\n\n\ndef _after_read(state: FileIntakeState) -> str:\n    # Path-map keys are node statuses (\"failed\"/\"read\"); see _after_detect note.\n    return state.status\n\n\ndef _node_extract_metadata(state: FileIntakeState,\n                           runtime: Runtime[FileIntakeContext]) -> dict:\n    ctx = _ctx(runtime)\n    _ = ctx\n    documents: list[dict] = []\n    uncertain: list[str] = []\n    for raw_doc in state.raw_docs:\n        doc_type, confidence = _classify_doc(raw_doc, MIN_CONFIDENCE)\n        if confidence < MIN_CONFIDENCE or doc_type == \"unknown\":\n            uncertain.append(raw_doc.get(\"name\", \"doc\"))\n            continue\n        doc = _extract_doc_fields(raw_doc, doc_type)\n        documents.append(doc)\n    if uncertain or not documents:\n        msg = (\"could not confidently classify: \" + \", \".join(uncertain)\n               if uncertain else \"no documents extracted\")\n        return {\"documents\": documents, \"status\": \"failed\",\n                \"error\": {\"code\": \"AR_UNCERTAIN\", \"message\": msg},\n                \"updated_at\": utc_now()}\n    return {\"documents\": documents, \"status\": \"extracted\",\n            \"updated_at\": utc_now()}\n\n\ndef _after_extract(state: FileIntakeState) -> str:\n    # Path-map keys are node statuses (\"failed\"/\"extracted\"); see _after_detect note.\n    return state.status\n\n\ndef _node_validate(state: FileIntakeState,\n                   runtime: Runtime[FileIntakeContext]) -> dict:\n    \"\"\"Per-document field validation via the reusable ``validate_document`` (§15).\n\n    Lazy import keeps the module importable before the bundle is installed. The\n    full-manifest cross-check (totals.sum == Σ amounts) is structurally\n    guaranteed by ``build_manifest`` (sum computed from the documents), so per-\n    document validation here is sufficient.\n    \"\"\"\n    ctx = _ctx(runtime)\n    _ = ctx\n    try:\n        from components.cosmic_common.validation_engine import validate_document\n    except ImportError:\n        return {\"status\": \"failed\",\n                \"error\": {\"code\": \"AR_NOT_IMPLEMENTED\",\n                          \"message\": \"validation_engine unavailable\"},\n                \"updated_at\": utc_now()}\n    all_errs: list[str] = []\n    for i, doc in enumerate(state.documents):\n        errs, _ = validate_document(doc, prefix=f\"documents[{i}]\")\n        all_errs.extend(errs)\n    if all_errs:\n        return {\"status\": \"failed\",\n                \"error\": {\"code\": \"AR_VALIDATION\",\n                          \"message\": \"; \".join(all_errs[:20])},\n                \"updated_at\": utc_now()}\n    return {\"status\": \"validated\", \"updated_at\": utc_now()}\n\n\ndef _after_validate(state: FileIntakeState) -> str:\n    # Path-map keys are node statuses (\"failed\"/\"validated\"); see _after_detect note.\n    return state.status\n\n\ndef _node_build_manifest(state: FileIntakeState,\n                         runtime: Runtime[FileIntakeContext]) -> dict:\n    ctx = _ctx(runtime)\n    _ = ctx\n    manifest = build_manifest(list(state.documents), state.trace_id, state.tenant)\n    return {\"manifest\": manifest, \"status\": \"built\",\n            \"updated_at\": utc_now()}\n\n\ndef _node_checkpoint(state: FileIntakeState,\n                     runtime: Runtime[FileIntakeContext]) -> dict:\n    \"\"\"Record the manifest id as the audit ref (§11 — the manifest is the\n    auditable artifact). The InMemorySaver persists state after this node.\"\"\"\n    ctx = _ctx(runtime)\n    _ = ctx\n    manifest = state.manifest or {}\n    mid = manifest.get(\"manifest_id\", \"\") if isinstance(manifest, dict) else \"\"\n    audit_refs = list(state.audit_refs)\n    if mid and mid not in audit_refs:\n        audit_refs.append(mid)\n    return {\"audit_refs\": audit_refs, \"status\": \"completed\",\n            \"updated_at\": utc_now()}\n\n\ndef _node_respond(state: FileIntakeState,\n                  runtime: Runtime[FileIntakeContext]) -> dict:\n    \"\"\"Terminal marker; ``run()`` assembles the envelope from final state.\"\"\"\n    _ = runtime\n    return {\"updated_at\": utc_now()}\n\n\n# --------------------------------------------------------------------------- #\n#  The lfx Component.\n# --------------------------------------------------------------------------- #\n\n\nclass FileIntakeFlowComponent(Component):\n    # Bare class name as the canonical `name` (mirrors SupervisorAgentComponent).\n    name = \"FileIntakeFlowComponent\"\n    display_name = \"Cosmic AR File Intake Flow\"\n    description = (\n        \"Accepts an uploaded Excel/CSV/PDF, identifies its report type, extracts \"\n        \"metadata, validates it, and builds a DocumentManifest — with logging, \"\n        \"retries, and checkpoints (constitution §4/§8/§9/§10/§11/§12). The 10th \"\n        \"AR subflow; called directly or routed to by the supervisor.\"\n    )\n    icon = \"FileInput\"\n\n    inputs = [\n        MessageTextInput(\n            name=\"user_input\",\n            display_name=\"User Request\",\n            info=\"The natural-language request accompanying the upload (carries intent keywords).\",\n            required=False,\n            tool_mode=True,\n        ),\n        HandleInput(\n            name=\"files\",\n            display_name=\"Uploaded Files\",\n            info=\"Uploaded file refs — either from the canvas File node (Data) or \"\n                 \"carried on the ChatInput Message (.files) when files are injected via \"\n                 \"the run API (the 'accept uploaded files' responsibility).\",\n            input_types=[\"Data\", \"Message\"],\n            is_list=True,\n            required=False,\n        ),\n        MessageTextInput(\n            name=\"model_name\",\n            display_name=\"Model\",\n            value=\"gpt-4o-mini\",\n            info=\"LLM model hook (v1: deterministic detect/classify/extract; LLM path is build-phase).\",\n            tool_mode=True,\n        ),\n    ]\n\n    outputs = [\n        Output(\n            name=\"intake_output\",\n            display_name=\"Intake Result\",\n            method=\"run\",\n        ),\n    ]\n\n    # ------------------------------------------------------------------ #\n    #  Graph construction (compiled once, cached per instance).\n    # ------------------------------------------------------------------ #\n    def _build_graph(self) -> Any:\n        graph = StateGraph(state_schema=FileIntakeState,\n                           context_schema=FileIntakeContext)\n        graph.add_node(\"ingest\", _node_ingest)\n        graph.add_node(\"detect_type\", _node_detect_type)\n        graph.add_node(\"read\", _node_read)\n        graph.add_node(\"extract_metadata\", _node_extract_metadata)\n        graph.add_node(\"validate\", _node_validate)\n        graph.add_node(\"build_manifest\", _node_build_manifest)\n        graph.add_node(\"checkpoint\", _node_checkpoint)\n        graph.add_node(\"respond\", _node_respond)\n        graph.add_edge(START, \"ingest\")\n        graph.add_edge(\"ingest\", \"detect_type\")\n        graph.add_conditional_edges(\"detect_type\", _after_detect,\n                                    {\"failed\": \"respond\", \"typed\": \"read\"})\n        graph.add_conditional_edges(\"read\", _after_read,\n                                    {\"failed\": \"respond\", \"read\": \"extract_metadata\"})\n        graph.add_conditional_edges(\"extract_metadata\", _after_extract,\n                                    {\"failed\": \"respond\", \"extracted\": \"validate\"})\n        graph.add_conditional_edges(\"validate\", _after_validate,\n                                    {\"failed\": \"respond\", \"validated\": \"build_manifest\"})\n        graph.add_edge(\"build_manifest\", \"checkpoint\")\n        graph.add_edge(\"checkpoint\", \"respond\")\n        graph.add_edge(\"respond\", END)\n        return graph.compile(checkpointer=InMemorySaver())\n\n    def _get_graph(self) -> Any:\n        cached = getattr(self, \"_compiled_graph\", None)\n        if cached is None:\n            cached = self._build_graph()\n            self._compiled_graph = cached  # type: ignore[attr-defined]\n        return cached\n\n    # ------------------------------------------------------------------ #\n    #  Output method — the only lfx entry point. Never raises (§5/§9).\n    # ------------------------------------------------------------------ #\n    def run(self) -> Message:\n        try:\n            user_input = _to_str(self.user_input)\n            files = _expand_files(getattr(self, \"files\", None))\n            session_id = _to_str(getattr(self, \"session_id\", \"\")) or mint_id()\n            actor = _to_str(getattr(self, \"actor\", \"\"))\n            model_name = _to_str(getattr(self, \"model_name\", \"\"))\n            ctx: FileIntakeContext = {\n                \"user_input\": user_input,\n                \"files\": files,\n                \"actor\": actor,\n                \"session_id\": session_id,\n                \"tenant\": \"cosmic-vikings\",\n                \"flow_id\": \"ar_file_intake\",\n                \"model_name\": model_name,\n            }\n            graph = self._get_graph()\n            config = {\"configurable\": {\"thread_id\": session_id}}\n            initial = FileIntakeState(\n                trace_id=mint_id(),\n                flow_id=ctx[\"flow_id\"],\n                tenant=ctx[\"tenant\"],\n            )\n            graph.invoke(initial, config=config, context=ctx)\n            envelope = self._finalize_envelope(graph, config)\n            self.log(\n                f\"event=file_intake.run outcome={envelope.get('status')} \"\n                f\"trace_id={envelope.get('trace_id')} \"\n                f\"flow_id={envelope.get('flow_id')} \"\n                f\"ar_entity=intake outcome={envelope.get('status')} \"\n                f\"code={envelope.get('code')}\")\n            return Message(text=json.dumps(envelope))\n        except Exception as exc:  # noqa: BLE001 — §5: never raise out of the output method\n            env = _envelope(\"error\", \"AR_UNEXPECTED\",\n                            error={\"message\": \"File intake run failed.\",\n                                   \"detail\": str(exc)[:500]},\n                            trace_id=\"\")\n            try:\n                self.log(\"event=file_intake.run outcome=error code=AR_UNEXPECTED\")\n            except Exception:  # noqa: BLE001 — logging must never crash the boundary\n                pass\n            return Message(text=json.dumps(env))\n\n    # ------------------------------------------------------------------ #\n    #  Helpers\n    # ------------------------------------------------------------------ #\n    def _finalize_envelope(self, graph: Any, config: dict) -> dict[str, Any]:\n        \"\"\"Read the final state → §14 envelope (deterministic from state).\n\n        ``graph.get_state(config).values`` returns the merged channel values\n        as a *plain dict* (not the typed ``FileIntakeState`` dataclass — nodes\n        receive the reconstructed dataclass, but the snapshot does not), so we\n        access fields by key here.\n\n        The payload nests under ``data`` (§14: the top level is\n        ``status|code|trace_id|data|error|approval_ref`` with\n        ``additionalProperties:false``). The supervisor merges\n        ``data.audit_refs`` into ``AgentState``; ``data.manifest`` carries the\n        ``DocumentManifest``. Intake is read-only, so ``data`` carries no\n        financial ``totals{matched,outstanding,posted}`` (the manifest's own\n        ``totals{count,sum}`` live under ``data.manifest.totals``).\n        \"\"\"\n        snapshot = graph.get_state(config)\n        vals = snapshot.values if isinstance(snapshot.values, dict) \\\n            else _state_to_dict(snapshot.values)\n        documents = vals.get(\"documents\") or []\n        audit_refs = vals.get(\"audit_refs\") or []\n        data: dict[str, Any] = {\n            \"manifest\": vals.get(\"manifest\") or {},\n            \"audit_refs\": list(audit_refs) if isinstance(audit_refs, list) else [],\n            \"document_count\": len(documents) if isinstance(documents, list) else 0,\n            \"flow_id\": vals.get(\"flow_id\", \"\"),\n            \"tenant\": vals.get(\"tenant\", \"\"),\n            \"started_at\": vals.get(\"created_at\") or utc_now(),\n            \"ended_at\": vals.get(\"updated_at\") or utc_now(),\n            \"contract_version\": CONTRACT_VERSION,\n        }\n        trace_id = vals.get(\"trace_id\", \"\")\n        if vals.get(\"status\") == \"failed\":\n            err = vals.get(\"error\") or {\"code\": \"AR_UNEXPECTED\",\n                                         \"message\": \"intake failed\"}\n            code = err.get(\"code\", \"AR_UNEXPECTED\") if isinstance(err, dict) \\\n                else \"AR_UNEXPECTED\"\n            return {\"status\": \"error\", \"code\": code, \"trace_id\": trace_id,\n                    \"data\": data, \"error\": err}\n        return {\"status\": \"ok\", \"code\": \"AR_OK\", \"trace_id\": trace_id,\n                \"data\": data}"
+              },
+              "user_input": {
+                "_input_type": "MessageTextInput",
+                "advanced": false,
+                "display_name": "User Request",
+                "dynamic": false,
+                "info": "The natural-language request accompanying the upload (carries intent keywords).",
+                "input_types": [
+                  "Message"
+                ],
+                "list": false,
+                "load_from_db": false,
+                "name": "user_input",
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "trace_as_input": true,
+                "trace_as_metadata": false,
+                "type": "str",
+                "value": ""
+              },
+              "model_name": {
+                "_input_type": "MessageTextInput",
+                "advanced": false,
+                "display_name": "Model",
+                "dynamic": false,
+                "info": "LLM model hook (v1: deterministic detect/classify/extract; LLM path is build-phase).",
+                "input_types": [
+                  "Message"
+                ],
+                "list": false,
+                "load_from_db": false,
+                "name": "model_name",
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "trace_as_input": true,
+                "trace_as_metadata": false,
+                "type": "str",
+                "value": "gpt-4o-mini"
+              },
+              "files": {
+                "_input_type": "HandleInput",
+                "advanced": false,
+                "display_name": "Uploaded Files",
+                "dynamic": false,
+                "info": "Uploaded file refs from the canvas File node (the 'accept uploaded files' responsibility).",
+                "input_types": [
+                  "Data"
+                ],
+                "list": true,
+                "load_from_db": false,
+                "name": "files",
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "trace_as_input": true,
+                "trace_as_metadata": false,
+                "type": "other",
+                "value": null
+              }
+            }
+          },
+          "selected_output": "intake_output",
+          "type": "FileIntakeFlowComponent"
+        },
+        "dragging": false,
+        "height": 200,
+        "id": "FileIntakeFlowComponent-ar001",
+        "measured": {
+          "height": 200,
+          "width": 320
+        },
+        "position": {
+          "x": 300,
+          "y": 0
+        },
+        "positionAbsolute": {
+          "x": 300,
+          "y": 0
+        },
+        "selected": false,
+        "type": "genericNode"
+      },
+      {
+        "data": {
+          "id": "ChatOutput-ar001",
+          "node": {
+            "base_classes": [
+              "Message"
+            ],
+            "beta": false,
+            "conditional_paths": [],
+            "custom_fields": {},
+            "description": "Display a chat message in the Playground.",
+            "display_name": "Chat Output",
+            "documentation": "",
+            "edited": false,
+            "field_order": [
+              "input_value",
+              "should_store_message",
+              "sender",
+              "sender_name",
+              "session_id",
+              "data_template",
+              "background_color",
+              "chat_icon",
+              "text_color"
+            ],
+            "frozen": false,
+            "icon": "MessagesSquare",
+            "legacy": false,
+            "lf_version": "1.10.1",
+            "metadata": {
+              "code_hash": "8c87e536cca4",
+              "dependencies": {
+                "dependencies": [
+                  {
+                    "name": "orjson",
+                    "version": "3.10.15"
+                  },
+                  {
+                    "name": "fastapi",
+                    "version": "0.128.0"
+                  },
+                  {
+                    "name": "lfx",
+                    "version": null
+                  }
+                ],
+                "total_dependencies": 3
+              },
+              "module": "lfx.components.input_output.chat_output.ChatOutput"
+            },
+            "output_types": [],
+            "outputs": [
+              {
+                "allows_loop": false,
+                "cache": true,
+                "display_name": "Output Message",
+                "group_outputs": false,
+                "method": "message_response",
+                "name": "message",
+                "selected": "Message",
+                "tool_mode": true,
+                "types": [
+                  "Message"
+                ],
+                "value": "__UNDEFINED__"
+              }
+            ],
+            "pinned": false,
+            "template": {
+              "_type": "Component",
+              "clean_data": {
+                "_input_type": "BoolInput",
+                "advanced": true,
+                "display_name": "Basic Clean Data",
+                "dynamic": false,
+                "info": "Whether to clean data before converting to string.",
+                "list": false,
+                "list_add_label": "Add More",
+                "name": "clean_data",
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_metadata": true,
+                "type": "bool",
+                "value": true
+              },
+              "code": {
+                "advanced": true,
+                "dynamic": true,
+                "fileTypes": [],
+                "file_path": "",
+                "info": "",
+                "list": false,
+                "load_from_db": false,
+                "multiline": true,
+                "name": "code",
+                "password": false,
+                "placeholder": "",
+                "required": true,
+                "show": true,
+                "title_case": false,
+                "type": "code",
+                "value": "from collections.abc import Generator\nfrom typing import Any\n\nimport orjson\nfrom fastapi.encoders import jsonable_encoder\n\nfrom lfx.base.io.chat import ChatComponent\nfrom lfx.helpers.data import safe_convert\nfrom lfx.inputs.inputs import BoolInput, DropdownInput, HandleInput, MessageTextInput\nfrom lfx.schema.data import Data\nfrom lfx.schema.dataframe import DataFrame\nfrom lfx.schema.message import Message\nfrom lfx.schema.properties import Source\nfrom lfx.template.field.base import Output\nfrom lfx.utils.constants import (\n    MESSAGE_SENDER_AI,\n    MESSAGE_SENDER_NAME_AI,\n    MESSAGE_SENDER_USER,\n)\n\n\nclass ChatOutput(ChatComponent):\n    display_name = \"Chat Output\"\n    description = \"Display a chat message in the Playground.\"\n    documentation: str = \"https://docs.langflow.org/chat-input-and-output\"\n    icon = \"MessagesSquare\"\n    name = \"ChatOutput\"\n    minimized = True\n\n    inputs = [\n        HandleInput(\n            name=\"input_value\",\n            display_name=\"Inputs\",\n            info=\"Message to be passed as output.\",\n            input_types=[\"Data\", \"DataFrame\", \"Message\"],\n            required=True,\n        ),\n        BoolInput(\n            name=\"should_store_message\",\n            display_name=\"Store Messages\",\n            info=\"Store the message in the history.\",\n            value=True,\n            advanced=True,\n        ),\n        DropdownInput(\n            name=\"sender\",\n            display_name=\"Sender Type\",\n            options=[MESSAGE_SENDER_AI, MESSAGE_SENDER_USER],\n            value=MESSAGE_SENDER_AI,\n            advanced=True,\n            info=\"Type of sender.\",\n        ),\n        MessageTextInput(\n            name=\"sender_name\",\n            display_name=\"Sender Name\",\n            info=\"Name of the sender.\",\n            value=MESSAGE_SENDER_NAME_AI,\n            advanced=True,\n        ),\n        MessageTextInput(\n            name=\"session_id\",\n            display_name=\"Session ID\",\n            info=\"The session ID of the chat. If empty, the current session ID parameter will be used.\",\n            advanced=True,\n        ),\n        MessageTextInput(\n            name=\"context_id\",\n            display_name=\"Context ID\",\n            info=\"The context ID of the chat. Adds an extra layer to the local memory.\",\n            value=\"\",\n            advanced=True,\n        ),\n        MessageTextInput(\n            name=\"data_template\",\n            display_name=\"Data Template\",\n            value=\"{text}\",\n            advanced=True,\n            info=\"Template to convert Data to Text. If left empty, it will be dynamically set to the Data's text key.\",\n        ),\n        BoolInput(\n            name=\"clean_data\",\n            display_name=\"Basic Clean Data\",\n            value=True,\n            advanced=True,\n            info=\"Whether to clean data before converting to string.\",\n        ),\n    ]\n    outputs = [\n        Output(\n            display_name=\"Output Message\",\n            name=\"message\",\n            method=\"message_response\",\n        ),\n    ]\n\n    def _build_source(self, id_: str | None, display_name: str | None, source: str | None) -> Source:\n        source_dict = {}\n        if id_:\n            source_dict[\"id\"] = id_\n        if display_name:\n            source_dict[\"display_name\"] = display_name\n        if source:\n            # Handle case where source is a ChatOpenAI object\n            if hasattr(source, \"model_name\"):\n                source_dict[\"source\"] = source.model_name\n            elif hasattr(source, \"model\"):\n                source_dict[\"source\"] = str(source.model)\n            else:\n                source_dict[\"source\"] = str(source)\n        return Source(**source_dict)\n\n    async def message_response(self) -> Message:\n        # First convert the input to string if needed\n        text = self.convert_to_string()\n\n        # Get source properties\n        source, _, display_name, source_id = self.get_properties_from_source_component()\n\n        # Create or use existing Message object\n        if isinstance(self.input_value, Message) and not self.is_connected_to_chat_input():\n            message = self.input_value\n            # Update message properties\n            message.text = text\n            # Preserve existing session_id from the incoming message if it exists\n            existing_session_id = message.session_id\n        else:\n            message = Message(text=text)\n            existing_session_id = None\n\n        # Set message properties\n        message.sender = self.sender\n        message.sender_name = self.sender_name\n        # Preserve session_id from incoming message, or use component/graph session_id\n        message.session_id = (\n            self.session_id or existing_session_id or (self.graph.session_id if hasattr(self, \"graph\") else None) or \"\"\n        )\n        message.context_id = self.context_id\n        message.flow_id = self.graph.flow_id if hasattr(self, \"graph\") else None\n        message.properties.source = self._build_source(source_id, display_name, source)\n\n        # Store message if needed\n        if message.session_id and self.should_store_message:\n            stored_message = await self.send_message(message)\n            self.message.value = stored_message\n            message = stored_message\n\n        self.status = message\n        return message\n\n    def _serialize_data(self, data: Data) -> str:\n        \"\"\"Serialize Data object to JSON string.\"\"\"\n        # Convert data.data to JSON-serializable format\n        serializable_data = jsonable_encoder(data.data)\n        # Serialize with orjson, enabling pretty printing with indentation\n        json_bytes = orjson.dumps(serializable_data, option=orjson.OPT_INDENT_2)\n        # Convert bytes to string and wrap in Markdown code blocks\n        return \"```json\\n\" + json_bytes.decode(\"utf-8\") + \"\\n```\"\n\n    def _validate_input(self) -> None:\n        \"\"\"Validate the input data and raise ValueError if invalid.\"\"\"\n        if self.input_value is None:\n            msg = \"Input data cannot be None\"\n            raise ValueError(msg)\n        if isinstance(self.input_value, list) and not all(\n            isinstance(item, Message | Data | DataFrame | str) for item in self.input_value\n        ):\n            invalid_types = [\n                type(item).__name__\n                for item in self.input_value\n                if not isinstance(item, Message | Data | DataFrame | str)\n            ]\n            msg = f\"Expected Data or DataFrame or Message or str, got {invalid_types}\"\n            raise TypeError(msg)\n        if not isinstance(\n            self.input_value,\n            Message | Data | DataFrame | str | list | Generator | type(None),\n        ):\n            type_name = type(self.input_value).__name__\n            msg = f\"Expected Data or DataFrame or Message or str, Generator or None, got {type_name}\"\n            raise TypeError(msg)\n\n    def convert_to_string(self) -> str | Generator[Any, None, None]:\n        \"\"\"Convert input data to string with proper error handling.\"\"\"\n        self._validate_input()\n        if isinstance(self.input_value, list):\n            clean_data: bool = getattr(self, \"clean_data\", False)\n            return \"\\n\".join([safe_convert(item, clean_data=clean_data) for item in self.input_value])\n        if isinstance(self.input_value, Generator):\n            return self.input_value\n        return safe_convert(self.input_value)\n"
+              },
+              "context_id": {
+                "_input_type": "MessageTextInput",
+                "advanced": true,
+                "display_name": "Context ID",
+                "dynamic": false,
+                "info": "The context ID of the chat. Adds an extra layer to the local memory.",
+                "input_types": [
+                  "Message"
+                ],
+                "list": false,
+                "list_add_label": "Add More",
+                "load_from_db": false,
+                "name": "context_id",
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "type": "str",
+                "value": ""
+              },
+              "data_template": {
+                "_input_type": "MessageTextInput",
+                "advanced": true,
+                "display_name": "Data Template",
+                "dynamic": false,
+                "info": "Template to convert Data to Text. If left empty, it will be dynamically set to the Data's text key.",
+                "input_types": [
+                  "Message"
+                ],
+                "list": false,
+                "load_from_db": false,
+                "name": "data_template",
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "type": "str",
+                "value": "{text}"
+              },
+              "input_value": {
+                "_input_type": "MessageInput",
+                "advanced": false,
+                "display_name": "Inputs",
+                "dynamic": false,
+                "info": "Message to be passed as output.",
+                "input_types": [
+                  "Data",
+                  "DataFrame",
+                  "Message"
+                ],
+                "list": false,
+                "load_from_db": false,
+                "name": "input_value",
+                "placeholder": "",
+                "required": true,
+                "show": true,
+                "title_case": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "type": "str",
+                "value": ""
+              },
+              "sender": {
+                "_input_type": "DropdownInput",
+                "advanced": true,
+                "combobox": false,
+                "display_name": "Sender Type",
+                "dynamic": false,
+                "info": "Type of sender.",
+                "name": "sender",
+                "options": [
+                  "Machine",
+                  "User"
+                ],
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_metadata": true,
+                "type": "str",
+                "value": "Machine"
+              },
+              "sender_name": {
+                "_input_type": "MessageTextInput",
+                "advanced": true,
+                "display_name": "Sender Name",
+                "dynamic": false,
+                "info": "Name of the sender.",
+                "input_types": [
+                  "Message"
+                ],
+                "list": false,
+                "load_from_db": false,
+                "name": "sender_name",
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "type": "str",
+                "value": "AI"
+              },
+              "session_id": {
+                "_input_type": "MessageTextInput",
+                "advanced": true,
+                "display_name": "Session ID",
+                "dynamic": false,
+                "info": "The session ID of the chat. If empty, the current session ID parameter will be used.",
+                "input_types": [
+                  "Message"
+                ],
+                "list": false,
+                "load_from_db": false,
+                "name": "session_id",
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "type": "str",
+                "value": ""
+              },
+              "should_store_message": {
+                "_input_type": "BoolInput",
+                "advanced": true,
+                "display_name": "Store Messages",
+                "dynamic": false,
+                "info": "Store the message in the history.",
+                "list": false,
+                "name": "should_store_message",
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "trace_as_metadata": true,
+                "type": "bool",
+                "value": true
+              }
+            },
+            "tool_mode": false
+          },
+          "type": "ChatOutput"
+        },
+        "dragging": false,
+        "height": 234,
+        "id": "ChatOutput-ar001",
+        "measured": {
+          "height": 234,
+          "width": 320
+        },
+        "position": {
+          "x": 900,
+          "y": 0
+        },
+        "positionAbsolute": {
+          "x": 900,
+          "y": 0
+        },
+        "selected": false,
+        "type": "genericNode",
+        "width": 320
+      }
+    ],
+    "edges": [
+      {
+        "animated": false,
+        "className": "",
+        "data": {
+          "sourceHandle": {
+            "dataType": "ChatInput",
+            "id": "ChatInput-ar001",
+            "name": "message",
+            "output_types": [
+              "Message"
+            ]
+          },
+          "targetHandle": {
+            "fieldName": "user_input",
+            "id": "FileIntakeFlowComponent-ar001",
+            "inputTypes": [
+              "Message"
+            ],
+            "type": "str"
+          }
+        },
+        "id": "e-chat-to-intake",
+        "selected": false,
+        "source": "ChatInput-ar001",
+        "sourceHandle": "{œdataTypeœ:œChatInputœ,œidœ:œChatInput-ar001œ,œnameœ:œmessageœ,œoutput_typesœ:[œMessageœ]}",
+        "target": "FileIntakeFlowComponent-ar001",
+        "targetHandle": "{œfieldNameœ:œuser_inputœ,œidœ:œFileIntakeFlowComponent-ar001œ,œinputTypesœ:[œMessageœ],œtypeœ:œstrœ}"
+      },
+      {
+        "animated": false,
+        "className": "",
+        "selected": false,
+        "id": "e-chat-to-intake-files",
+        "source": "ChatInput-ar001",
+        "sourceHandle": "{œdataTypeœ:œChatInputœ,œidœ:œChatInput-ar001œ,œnameœ:œmessageœ,œoutput_typesœ:[œMessageœ]}",
+        "target": "FileIntakeFlowComponent-ar001",
+        "targetHandle": "{œfieldNameœ:œfilesœ,œidœ:œFileIntakeFlowComponent-ar001œ,œinputTypesœ:[œDataœ,œMessageœ],œtypeœ:œsourceœ}",
+        "data": {
+          "sourceHandle": {
+            "dataType": "ChatInput",
+            "id": "ChatInput-ar001",
+            "name": "message",
+            "output_types": [
+              "Message"
+            ]
+          },
+          "targetHandle": {
+            "fieldName": "files",
+            "id": "FileIntakeFlowComponent-ar001",
+            "inputTypes": [
+              "Data",
+              "Message"
+            ],
+            "type": "source"
+          }
+        }
+      },
+      {
+        "animated": false,
+        "className": "",
+        "data": {
+          "sourceHandle": {
+            "dataType": "FileIntakeFlowComponent",
+            "id": "FileIntakeFlowComponent-ar001",
+            "name": "intake_output",
+            "output_types": [
+              "Message"
+            ]
+          },
+          "targetHandle": {
+            "fieldName": "input_value",
+            "id": "ChatOutput-ar001",
+            "inputTypes": [
+              "Data",
+              "DataFrame",
+              "Message"
+            ],
+            "type": "str"
+          }
+        },
+        "id": "e-intake-to-out",
+        "selected": false,
+        "source": "FileIntakeFlowComponent-ar001",
+        "sourceHandle": "{œdataTypeœ:œFileIntakeFlowComponentœ,œidœ:œFileIntakeFlowComponent-ar001œ,œnameœ:œintake_outputœ,œoutput_typesœ:[œMessageœ]}",
+        "target": "ChatOutput-ar001",
+        "targetHandle": "{œfieldNameœ:œinput_valueœ,œidœ:œChatOutput-ar001œ,œinputTypesœ:[œDataœ,œDataFrameœ,œMessageœ],œtypeœ:œstrœ}"
+      }
+    ],
+    "viewport": {}
+  }
+}

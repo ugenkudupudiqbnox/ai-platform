@@ -1,0 +1,27 @@
+{
+  "trace_id": "ar-trace-07f3a1d2",
+  "tenant": "cosmic-vikings-ksa",
+  "period": {
+    "start": "2026-07-01",
+    "end": "2026-07-06"
+  },
+  "total": "48200.00",
+  "currency": "SAR",
+  "by_segment": [
+    {"segment": "dine_in", "amount": "31200.00", "count": 410},
+    {"segment": "delivery", "amount": "11800.00", "count": 220},
+    {"segment": "catering", "amount": "5200.00", "count": 6}
+  ],
+  "by_invoice": [
+    {"invoice_ref": "INV-123", "customer_ref": "cust-cv-0421", "amount": "1500.00"}
+  ],
+  "by_customer_ref": [
+    {"customer_ref": "cust-cv-0421", "amount": "1500.00", "count": 1}
+  ],
+  "comparison_prior_period": {
+    "prior_total": "45100.00",
+    "delta": "3100.00"
+  },
+  "generated_at": "2026-07-06T09:14:50Z",
+  "contract_version": "1.0.0"
+}

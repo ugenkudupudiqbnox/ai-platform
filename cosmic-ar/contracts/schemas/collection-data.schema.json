@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cosmic-vikings/ar-agent/contracts/collection-data.schema.json",
+  "title": "CollectionData",
+  "description": "Payments received and their match status against invoices. Produced by ar_match_payments / ar_reporting.",
+  "x-contract-version": "1.0.0",
+  "x-status": "draft",
+  "x-since": "2026-07-06",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["trace_id", "tenant", "period", "total_collected", "currency", "payments", "matched_amount", "unmatched_amount", "contract_version"],
+  "properties": {
+    "trace_id": {"type": "string", "minLength": 1},
+    "tenant": {"type": "string", "minLength": 1},
+    "period": {"$ref": "#/$defs/period"},
+    "total_collected": {"type": "string", "pattern": "^\\d+\\.\\d{2}$", "description": "Sum of all payments, non-negative 2dp string."},
+    "currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
+    "payments": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/payment"}
+    },
+    "matched_amount": {"type": "string", "pattern": "^\\d+\\.\\d{2}$", "description": "Sum of matched payments, non-negative."},
+    "unmatched_amount": {"type": "string", "pattern": "^\\d+\\.\\d{2}$", "description": "Sum of unmatched payments, non-negative."},
+    "aging_buckets": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/aging_bucket"}
+    },
+    "by_method": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/method_breakdown"}
+    },
+    "generated_at": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"},
+    "contract_version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"}
+  },
+  "$defs": {
+    "period": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end"],
+      "properties": {
+        "start": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
+        "end": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"}
+      }
+    },
+    "payment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["payment_id", "customer_ref", "amount", "method", "posted_at", "match_status"],
+      "properties": {
+        "payment_id": {"type": "string", "minLength": 1},
+        "customer_ref": {"type": "string", "minLength": 1, "description": "Customer id; no PII (§16)."},
+        "amount": {"type": "string", "pattern": "^\\d+\\.\\d{2}$"},
+        "method": {"type": "string", "enum": ["cash", "card", "bank_transfer", "online", "wallet", "other"]},
+        "posted_at": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"},
+        "matched_invoice_ref": {"type": "string", "minLength": 1, "description": "Present when match_status=matched or partial."},
+        "match_status": {"type": "string", "enum": ["matched", "unmatched", "partial"]}
+      }
+    },
+    "aging_bucket": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bucket", "amount", "count"],
+      "properties": {
+        "bucket": {"type": "string", "enum": ["current", "1_30", "31_60", "61_90", "91_plus"]},
+        "amount": {"type": "string", "pattern": "^\\d+\\.\\d{2}$"},
+        "count": {"type": "integer", "minimum": 0}
+      }
+    },
+    "method_breakdown": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method", "amount", "count"],
+      "properties": {
+        "method": {"type": "string", "enum": ["cash", "card", "bank_transfer", "online", "wallet", "other"]},
+        "amount": {"type": "string", "pattern": "^\\d+\\.\\d{2}$"},
+        "count": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

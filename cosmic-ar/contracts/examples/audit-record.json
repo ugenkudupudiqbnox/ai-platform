@@ -1,0 +1,23 @@
+{
+  "audit_id": "f1e2d3c4-9a8b-7c6d-5e4f-3a2b1c0d9e8f",
+  "trace_id": "ar-trace-07f3a1d2",
+  "tenant": "cosmic-vikings-ksa",
+  "actor": "auth0|keycloak-sub-cv-finance-lead-002",
+  "action": "gl.post",
+  "timestamp": "2026-07-06T09:22:46Z",
+  "append_only": true,
+  "approval_ref": "ar-approval-c2a7b1e4-6d5f-4a3b-8e2c-9f1a2b3c4d5e",
+  "idempotency_key": "ar-idem:gl_post:inv-123:7f3a1d2e",
+  "before": {
+    "balance_due": "1725.00",
+    "status": "open"
+  },
+  "after": {
+    "balance_due": "225.00",
+    "status": "partial"
+  },
+  "source_system": "zoho",
+  "source_ref": "INV-123",
+  "correlation_id": "e1b2c3d4-7a6b-5c4d-3e2f-1a0b9c8d7e6f",
+  "contract_version": "1.0.0"
+}

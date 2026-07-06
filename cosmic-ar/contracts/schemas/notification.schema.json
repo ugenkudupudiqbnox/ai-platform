@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cosmic-vikings/ar-agent/contracts/notification.schema.json",
+  "title": "Notification",
+  "description": "A dunning or approval notification dispatched by ar_dunning / ar_approval. Recipients are referenced by id only — no PII in the payload (§16).",
+  "x-contract-version": "1.0.0",
+  "x-status": "draft",
+  "x-since": "2026-07-06",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["notification_id", "trace_id", "tenant", "channel", "recipient_ref", "template", "status", "triggered_at", "contract_version"],
+  "properties": {
+    "notification_id": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
+    "trace_id": {"type": "string", "minLength": 1},
+    "tenant": {"type": "string", "minLength": 1},
+    "channel": {"type": "string", "enum": ["email", "sms", "chat", "in_app"]},
+    "recipient_ref": {"type": "string", "minLength": 1, "description": "Customer id (no PII); the channel resolves the address server-side (§16)."},
+    "template": {"type": "string", "minLength": 1, "description": "Stable template id (e.g. dunning.reminder_1, approval.request)."},
+    "status": {"type": "string", "enum": ["queued", "sent", "failed"]},
+    "triggered_at": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"},
+    "approval_ref": {"type": "string", "pattern": "^ar-approval-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", "description": "Present for approval-request notifications."},
+    "body_ref": {"type": "string", "minLength": 1, "description": "Reference to the rendered body (stored out-of-band); the raw body is not inlined to keep PII out of logs (§16)."},
+    "subject_ref": {"type": "string", "minLength": 1, "description": "Reference to the rendered subject."},
+    "sent_at": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$", "description": "Present when status=sent."},
+    "dunning_level": {"type": "integer", "minimum": 1, "description": "Dunning escalation level (ar_dunning)."},
+    "contract_version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"}
+  }
+}

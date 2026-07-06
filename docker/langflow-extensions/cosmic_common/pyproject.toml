@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lfx-cosmic-common"
+version = "0.1.0"
+description = "Cosmic Common -- a Langflow Extension bundling the 15 generic reusable components (readers, classifier, normalizer, engines, builder, connectors, state/audit/checkpoint/config managers) that the AR-specific ar_common/ar_tools bundles compose."
+requires-python = ">=3.10"
+# Inline bundles rely on packages already present in the langflow image venv
+# (requests, sqlalchemy, langchain, lfx, stdlib csv/dataclasses). Some components
+# need libs NOT in the image (openpyxl, pdfplumber, jsonschema,
+# langgraph-checkpoint-postgres) — those are baked into docker/langflow/Dockerfile
+# at build phase (see cosmic-ar/docs/adr/adr-0002-reusable-component-library.md).
+# Mirrors the ap_tools/ar_common precedent: dependencies = [].
+dependencies = []
+
+[tool.setuptools]
+package-dir = {"" = "."}
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["components*"]
+
+[tool.setuptools.package-data]
+"*" = ["extension.json"]
+
+[tool.langflow.extension]
+manifest = "extension.json"
+
+[project.entry-points."langflow.extensions"]
+cosmic_common = "components.cosmic_common"

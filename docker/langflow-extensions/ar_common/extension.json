@@ -1,0 +1,21 @@
+{
+  "$schema": "https://schemas.langflow.org/extension/v1.json",
+  "id": "ar-common",
+  "version": "0.1.0",
+  "name": "AR Common",
+  "description": "Cross-cutting shared components for the Cosmic AR Agent — the LangGraph SupervisorAgentComponent plus the envelope/approval/idempotency/checkpoint/audit helpers, and the typed AgentState. No credentials are required by this bundle itself; source-system credentials are handled by the ar_tools bundle.",
+  "lfx": {
+    "compat": ["1"]
+  },
+  "bundles": [
+    {
+      "name": "ar_common",
+      "path": "components/ar_common",
+      "display_name": "AR Common",
+      "icon": "Layers"
+    }
+  ],
+  "capabilities": {
+    "requiresCredentials": false
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "valid": false,
+  "contract_name": "InvoiceData",
+  "contract_version": "1.0.0",
+  "trace_id": "ar-trace-07f3a1d2",
+  "errors": [
+    {
+      "path": "/data/total",
+      "code": "AR_VALIDATION_AMOUNT",
+      "message": "total must equal subtotal + tax - discounts.",
+      "rule_id": "INV-001"
+    },
+    {
+      "path": "/data/line_items/0/qty",
+      "code": "AR_VALIDATION_PATTERN",
+      "message": "qty must be a 2-decimal string.",
+      "rule_id": "INV-002"
+    }
+  ],
+  "warnings": [
+    {
+      "path": "/data/notes",
+      "code": "AR_VALIDATION",
+      "message": "notes field is long; ensure it contains no PII (§16).",
+      "rule_id": "PII-001"
+    }
+  ],
+  "validated_at": "2026-07-06T09:14:42Z",
+  "schema_ref": "https://cosmic-vikings/ar-agent/contracts/invoice-data.schema.json"
+}

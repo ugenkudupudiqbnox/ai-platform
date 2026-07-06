@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cosmic-vikings/ar-agent/contracts/workflow-state.schema.json",
+  "title": "WorkflowState",
+  "description": "JSON serialization of the LangGraph AgentState (constitution §8, architecture §7) plus the lifecycle status. A checkpoint row's agent_state jsonb IS a WorkflowState instance. Nodes return fragments (immutable updates); financial totals are explicit named fields.",
+  "x-contract-version": "1.0.0",
+  "x-status": "draft",
+  "x-since": "2026-07-06",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["trace_id", "flow_id", "tenant", "intent", "status", "matched_amount", "outstanding_balance", "posted_total", "pending_approvals", "idempotency_keys", "audit_refs", "contract_version"],
+  "properties": {
+    "trace_id": {"type": "string", "minLength": 1, "description": "Correlates logs/audit across the run (§12)."},
+    "flow_id": {"type": "string", "minLength": 1, "description": "Supervisor LangFlow flow UUID (§12)."},
+    "tenant": {"type": "string", "minLength": 1, "description": "Cosmic Vikings entity scope (§12)."},
+    "intent": {"type": "string", "minLength": 1, "description": "Classified user intent → routed subflow."},
+    "status": {
+      "type": "string",
+      "enum": ["created", "routed", "executing", "awaiting_approval", "resuming", "completed", "failed", "pending_approval"],
+      "description": "Lifecycle state (architecture §7)."
+    },
+    "matched_amount": {"type": "string", "pattern": "^\\d+\\.\\d{2}$", "description": "Running total of matched receipts (§8), non-negative 2dp string."},
+    "outstanding_balance": {"type": "string", "pattern": "^\\d+\\.\\d{2}$", "description": "Running outstanding AR balance (§8), non-negative 2dp string."},
+    "posted_total": {"type": "string", "pattern": "^\\d+\\.\\d{2}$", "description": "Running total of posted payments (§8), non-negative 2dp string."},
+    "pending_approvals": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/approval"}
+    },
+    "idempotency_keys": {
+      "type": "object",
+      "additionalProperties": {"type": "string", "pattern": "^ar-idem:[a-z_]+:[a-z0-9_-]+:[a-z0-9_-]+$"},
+      "description": "action → idempotency key; replayed on retry/resume (§10)."
+    },
+    "tool_call_ref": {"type": "string", "minLength": 1, "description": "trace_id + tool + index, enough to re-fetch (§11)."},
+    "audit_refs": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "description": "Links to audit records written (§13)."
+    },
+    "current_node": {"type": "string", "minLength": 1, "description": "Current graph node name."},
+    "last_checkpoint_id": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", "description": "Resume handle (§11)."},
+    "created_at": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$", "description": "Run start, UTC ISO-8601."},
+    "updated_at": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$", "description": "Last state transition, UTC ISO-8601."},
+    "error": {"$ref": "#/$defs/error"},
+    "contract_version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$", "description": "WorkflowState schema version carried in the payload (semver)."}
+  },
+  "$defs": {
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["approval_id", "action", "amount", "requested_by", "requested_at"],
+      "properties": {
+        "approval_id": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
+        "action": {"type": "string", "minLength": 1, "description": "e.g. gl.post, invoice.issue, refund.issue."},
+        "amount": {"type": "string", "pattern": "^-?\\d+\\.\\d{2}$", "description": "May be negative for refunds."},
+        "requested_by": {"type": "string", "minLength": 1, "description": "Keycloak sub of the requester."},
+        "requested_at": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"},
+        "approval_ref": {"type": "string", "pattern": "^ar-approval-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", "description": "Set once the approval is fulfilled (§19)."}
+      }
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": {"type": "string", "pattern": "^AR_[A-Z_]+$"},
+        "message": {"type": "string", "minLength": 1}
+      },
+      "description": "Present when status=failed."
+    }
+  }
+}

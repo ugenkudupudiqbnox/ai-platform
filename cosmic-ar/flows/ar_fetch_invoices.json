@@ -1,0 +1,11 @@
+{
+  "name": "ar_fetch_invoices",
+  "description": "Placeholder flow — import into LangFlow and wire to: ZohoBooksARTool. No nodes wired yet (scaffold). See docs/cosmic-ar-architecture.md.",
+  "id": null,
+  "data": {
+    "nodes": [],
+    "edges": [],
+    "viewport": {}
+  },
+  "is_component": false
+}

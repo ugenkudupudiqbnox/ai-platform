@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lfx-ar-tools"
+version = "0.1.0"
+description = "AR Tools -- a Langflow Extension bundling the Zoho Books and FOODICS accounts-receivable agent tools."
+requires-python = ">=3.10"
+# Inline bundles rely on packages already present in the langflow image venv
+# (requests, lfx). Mirrors the ap_tools precedent.
+dependencies = []
+
+[tool.setuptools]
+package-dir = {"" = "."}
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["components*"]
+
+[tool.setuptools.package-data]
+"*" = ["extension.json"]
+
+[tool.langflow.extension]
+manifest = "extension.json"
+
+[project.entry-points."langflow.extensions"]
+ar_tools = "components.ar_tools"

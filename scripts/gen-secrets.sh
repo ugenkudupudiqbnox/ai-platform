@@ -48,6 +48,10 @@ ensure LANGFLOW_DB_PASSWORD      rand_b64url 24
 ensure LANGFUSE_DB_PASSWORD      rand_b64url 24
 ensure CLICKHOUSE_PASSWORD       rand_b64url 24
 ensure MONGO_INITDB_ROOT_PASSWORD rand_b64url 24
+# AR agent checkpoint DB (§11). Wiring the secret onto the postgres service /
+# baking langgraph-checkpoint-postgres is build-phase (see cosmic-ar/README.md);
+# generating it here keeps .env placeholder-free so `make test`/CI stay green.
+ensure AR_AGENT_DB_PASSWORD         rand_b64url 24
 
 # --- Redis -------------------------------------------------------------------
 ensure REDIS_PASSWORD            rand_b64url 24

@@ -1,0 +1,24 @@
+{
+  "status": "pending_approval",
+  "code": "AR_PENDING_APPROVAL",
+  "data": {
+    "approval_id": "c2a7b1e4-6d5f-4a3b-8e2c-9f1a2b3c4d5e",
+    "trace_id": "ar-trace-07f3a1d2",
+    "tenant": "cosmic-vikings-ksa",
+    "action": "gl.post",
+    "amount": "1500.00",
+    "currency": "SAR",
+    "tier": "approval",
+    "requested_by": "auth0|keycloak-sub-cv-admin-001",
+    "requested_at": "2026-07-06T09:15:00Z",
+    "proposal": {
+      "operation": "post_payment",
+      "target": "INV-123",
+      "amount": "1500.00",
+      "currency": "SAR"
+    },
+    "contract_version": "1.0.0"
+  },
+  "trace_id": "ar-trace-07f3a1d2",
+  "approval_ref": "ar-approval-c2a7b1e4-6d5f-4a3b-8e2c-9f1a2b3c4d5e"
+}

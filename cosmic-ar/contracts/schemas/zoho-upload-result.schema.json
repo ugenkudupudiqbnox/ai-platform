@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cosmic-vikings/ar-agent/contracts/zoho-upload-result.schema.json",
+  "title": "ZohoUploadResult",
+  "description": "Outcome of a Zoho Books write (GL post, invoice issue, payment post, credit note). Carries §9 AR_* codes and the idempotency key used (§10).",
+  "x-contract-version": "1.0.0",
+  "x-status": "draft",
+  "x-since": "2026-07-06",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["trace_id", "tenant", "operation", "http_status", "code", "idempotency_key", "contract_version"],
+  "properties": {
+    "trace_id": {"type": "string", "minLength": 1},
+    "tenant": {"type": "string", "minLength": 1},
+    "operation": {"type": "string", "enum": ["gl_post", "invoice_issue", "payment_post", "credit_note"]},
+    "http_status": {"type": "integer", "minimum": 100, "maximum": 599, "description": "HTTP status from Zoho Books."},
+    "code": {
+      "type": "string",
+      "enum": ["AR_OK", "AR_DUPLICATE", "AR_UPSTREAM", "AR_AUTH", "AR_VALIDATION", "AR_FORBIDDEN", "AR_NOT_FOUND"],
+      "description": "Stable AR_* code (§9). AR_DUPLICATE = safe idempotent replay (same key)."
+    },
+    "idempotency_key": {"type": "string", "pattern": "^ar-idem:[a-z_]+:[a-z0-9_-]+:[a-z0-9_-]+$", "description": "The key sent on the POST; identical on retry/resume (§10)."},
+    "zoho_id": {"type": "string", "minLength": 1, "description": "Native id of the created/updated Zoho object."},
+    "zoho_ref": {"type": "string", "minLength": 1, "description": "Human-facing Zoho reference (e.g. invoice number)."},
+    "duplicate": {"type": "boolean", "description": "True when Zoho reported a safe duplicate of the same idempotency key (code=AR_DUPLICATE)."},
+    "raw_response_ref": {"type": "string", "minLength": 1, "description": "Opaque reference to the stored raw response (never inlined; §9)."},
+    "attempted_at": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"},
+    "attempts": {"type": "integer", "minimum": 1, "description": "Number of attempts made (≤3 transient per §10)."},
+    "contract_version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"}
+  }
+}

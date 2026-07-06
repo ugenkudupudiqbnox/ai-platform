@@ -1,0 +1,22 @@
+{
+  "trace_id": "ar-trace-07f3a1d2",
+  "flow_id": "9b1d4e7a-3c8f-4a2b-9e6d-1f2a3b4c5d6e",
+  "tenant": "cosmic-vikings-ksa",
+  "intent": "post_received_payment",
+  "status": "ok",
+  "code": "AR_OK",
+  "totals": {
+    "matched": "1500.00",
+    "outstanding": "225.00",
+    "posted": "1500.00"
+  },
+  "started_at": "2026-07-06T09:14:30Z",
+  "ended_at": "2026-07-06T09:22:50Z",
+  "approvals": [
+    "ar-approval-c2a7b1e4-6d5f-4a3b-8e2c-9f1a2b3c4d5e"
+  ],
+  "audit_refs": ["f1e2d3c4-9a8b-7c6d-5e4f-3a2b1c0d9e8f"],
+  "checkpoint_id": "e1b2c3d4-7a6b-5c4d-3e2f-1a0b9c8d7e6f",
+  "subflows_invoked": ["ar_fetch_invoices", "ar_match_payments", "ar_approval", "ar_post_gl"],
+  "contract_version": "1.0.0"
+}
