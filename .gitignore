@@ -261,3 +261,9 @@ Thumbs.db
 # --skip-worktree`).
 docker/nginx/conf.d/figlinks.conf
 docker/nginx/conf.d/security-headers-figlinks.conf
+
+# --- Local-only generated artifacts -----------------------------------------
+# graphify knowledge graph + AST cache (regenerated via `graphify update .`).
+# Stray root-level log.txt (ad-hoc capture, not a source artifact).
+graphify-out/
+log.txt

@@ -1,7 +1,7 @@
 # Cosmic AR Agent — Architecture
 
 The architecture that realizes the [Project Constitution](cosmic-ar-constitution.md).
-One Supervisor Agent, nine reusable LangFlow subflows, shared `lfx` Components,
+One Supervisor Agent, twelve reusable LangFlow subflows, shared `lfx` Components,
 explicit LangGraph state, and the supporting retry / checkpoint / error-recovery
 architectures. **This is a design document — no flows are implemented here.** The
 folder structure and component names/signatures below make the later build phase
@@ -17,7 +17,7 @@ mechanical.
 The Cosmic AR Agent is a single LangFlow flow whose core node is a custom
 `SupervisorAgentComponent`. That component builds an explicit LangGraph
 `StateGraph[AgentState]` (typed dataclass state, immutable updates) with a
-Postgres-backed LangGraph checkpointer. The supervisor drives nine reusable
+Postgres-backed LangGraph checkpointer. The supervisor drives twelve reusable
 LangFlow subflows, exposed to it as LangChain tools via the built-in **Flow as
 Tool** node (`FlowToolComponent`). Entry and human-approval happen through the
 existing LibreChat → OpenAI-adapter → LangFlow path (`model` = supervisor flow
@@ -60,7 +60,7 @@ flowchart LR
   (`docker/langflow-adapter/adapter.py`); it runs one flow per request and does no
   routing, so all dispatch lives inside the supervisor flow.
 - **Orchestration:** `SupervisorAgentComponent` (a custom `lfx` Component) holds the
-  LangGraph `StateGraph[AgentState]` and a checkpointer; the ten subflows are its
+  LangGraph `StateGraph[AgentState]` and a checkpointer; the twelve subflows are its
   tools.
 - **State & resume:** checkpoints in a dedicated `ar_agent` Postgres DB — the source
   of truth for resume because Langfuse tracing is currently off (§11 caveat, see
@@ -70,7 +70,7 @@ flowchart LR
 
 ## 3. Component Diagram
 
-The shared `lfx` Components (reused across the ten subflows) and the source-system
+The shared `lfx` Components (reused across the twelve subflows) and the source-system
 tools. Each is labelled with the constitution section it implements. The
 `cosmic_common` readers (Excel/CSV/PDF), document classifier, and validation
 engine are implemented (ADR-0004); the remaining `cosmic_common` components are
@@ -118,7 +118,7 @@ graph TB
   `FoodicsAPTool`) is **not** AR-reused — its operations are AP-oriented — but it is
   the template for `ar_tools`, and the seed for the future AP extension (§20).
 
-## 4. Ten reusable LangFlow subflows
+## 4. Twelve reusable LangFlow subflows
 
 Each subflow is a LangFlow flow (definition stored in the LangFlow Postgres DB, not
 on disk — §7), exposed to the supervisor via **Flow as Tool**. IDs follow `ar_<verb>
@@ -136,13 +136,36 @@ _<object>` (§6); tiers follow §19.
 | 8 | `ar_reporting` | AR aging / dashboard extract | read-only | Envelope | ZohoBooksARTool, FoodicsARTool |
 | 9 | `ar_approval` | Capture/fulfill human approval (pending → approved/rejected); reused by 3/6/7 | approval / dual-control | ApprovalGate, Checkpoint, Audit | — |
 | 10 | `ar_file_intake` | Parse an uploaded Excel/CSV/PDF into a `DocumentManifest` (classify, extract metadata, validate) | read-only | Envelope, Validation, Checkpoint, Audit | File node (upload) |
+| 11 | `ar_intercompany_sales` | Read a KOT (Kitchen Order Ticket) Excel from intercompany buyer restaurants, validate rows, calculate revenue at the agreed rate, generate draft `InvoiceData` per buyer + Validation/Exception reports | approval (v1 draft-only) | Envelope, Validation, Checkpoint, Audit | File node (KOT upload) |
+| 12 | `ar_kitchen_revenue` | Read the four Cosmic Kitchen sheets (Menu Sales Analysis, Daily Sales, Detailed Check Payment, Marriott Backup); compute Revenue (Breakfast/Half Board segments), Collections, Expenses, Net Receivable, Net Payable; generate Revenue JSON + Validation/Exception reports | read-only | Envelope, Validation, Checkpoint, Audit | File node (4-sheet upload) |
 
 > Row 10 (`ar_file_intake`) is added by [ADR-0004](../cosmic-ar/docs/adr/adr-0004-file-intake-flow.md),
-> amending this section's original "Nine reusable subflows" to "Ten". It is the
-> only subflow that parses user-uploaded files; its manifest is returned in the
-> §14 envelope `data.manifest` (not added to `AgentState`). The supervisor routes
-> a file-only upload (no intent keyword) to it at 0.4 (below `MIN_CONFIDENCE` →
+> amending this section's original "Nine reusable subflows" to "Ten". Row 11
+> (`ar_intercompany_sales`) is added by [ADR-0005](../cosmic-ar/docs/adr/adr-0005-intercompany-sales-flow.md),
+> further amending it to "Eleven". Row 12 (`ar_kitchen_revenue`) is added by
+> [ADR-0006](../cosmic-ar/docs/adr/adr-0006-kitchen-revenue-flow.md), further
+> amending it to "Twelve". `ar_file_intake` is the only subflow that
+> parses user-uploaded files; its manifest is returned in the §14 envelope
+> `data.manifest` (not added to `AgentState`). The supervisor routes a file-only
+> upload (no intent keyword) to it at 0.4 (below `MIN_CONFIDENCE` →
 > `AR_UNCERTAIN` unless the user adds an "intake/upload" keyword — §4).
+
+> Row 11 (`ar_intercompany_sales`) is **compute + draft only in v1**: its tier is
+> `approval` (the intent is invoice production), but the §19 gate is dormant — it
+> emits a draft `InvoiceData[]` per buyer in `data.invoices` and returns `AR_OK`,
+> with no posting, no idempotency key, and no `pending_approval`. Revenue is not a
+> recognized `data.totals` key, so it is not added to `AgentState` (ADR-0005 §7);
+> the supervisor surfaces this flow only via `subflows_invoked` + `audit_refs`.
+
+> Row 12 (`ar_kitchen_revenue`) is **read-only compute + report in v1**: it
+> reads the four Cosmic Kitchen sheets, computes Revenue (Breakfast/Half Board
+> segments), Collections, Expenses, Net Receivable, Net Payable, and returns
+> `AR_OK` with a Revenue JSON + Validation/Exception reports — no posting, no
+> idempotency key, no `pending_approval`, not in `FINANCIAL_INTENTS`. Revenue /
+> collections / nets are not recognized `data.totals` keys, so they stay in the
+> envelope `data` (no `AgentState` schema change — ADR-0006 §7). It records a
+> checkpoint **after every calculation** (a stricter pattern than the
+> single-end-checkpoint in rows 10/11 — ADR-0006 §9).
 
 > `ar_approval` is the shared human-in-the-loop gate (§19). Any subflow whose tier
 > is `approval` or `dual-control` routes through it; it writes the checkpoint and
@@ -166,6 +189,8 @@ stateDiagram-v2
   route --> issue_invoice
   route --> reporting
   route --> file_intake
+  route --> intercompany_sales
+  route --> kitchen_revenue
   match --> approvalGate
   post_gl --> approvalGate
   issue_invoice --> approvalGate
@@ -174,6 +199,8 @@ stateDiagram-v2
   resume --> effect
   fetch --> effect
   file_intake --> effect
+  intercompany_sales --> effect
+  kitchen_revenue --> effect
   reconcile --> effect
   dunning --> effect
   reporting --> effect

@@ -133,6 +133,95 @@ so the supervisor runs end-to-end today. The `model_name` input is retained as
 the pluggable hook for an LLM-driven classifier at build phase (constitution
 §4 design principle 3 still holds: low confidence → `AR_UNCERTAIN`, fail safe).
 
+## Live-testing findings (post-deploy)
+
+The supervisor flow was deployed to the live stack (`algomotiveai.com`,
+LangFlow 1.10.1) and exercised end-to-end through the OpenAI adapter. Live
+testing surfaced five real corrections — recorded here so the canonical
+behavior matches the runtime, not the design's assumptions. After these, the
+supervisor classifies, routes, and returns a proper §14 envelope through the
+adapter (`/v1/models` lists it; `/v1/chat/completions` routes to it).
+
+### 7. RunFlow's tool output is `component_as_tool`/`to_toolkit`, not `api_build_tool`
+
+`supervisor.json`'s 10 `RunFlow` nodes were serialized with output
+`{name:"api_build_tool", method:"api_build_tool"}`. That output name belongs
+to the **`FlowTool`** component (`lfx.base.tools.flow_tool`), not `RunFlow`.
+`RunFlow` exposes its tool via the base `Component._build_tool_output()`:
+`Output(name="component_as_tool", display_name="Toolset", method="to_toolkit",
+types=["Tool"])` (`TOOL_OUTPUT_NAME` in `lfx.base.tools.constants`). At run
+time LangFlow called `self.api_build_tool()`, which resolved to the `Output`
+field object → `"'Output' object is not callable"` (HTTP 500 at every
+supervisor turn). Fixed by rewriting each RunFlow node's `outputs[0]` to
+`{name:"component_as_tool", method:"to_toolkit", display_name:"Toolset"}`,
+`selected_output="component_as_tool"`, and each RunFlow→supervisor edge's
+`sourceHandle.name` to `component_as_tool`. `flow_id_selected=null` is fine —
+`get_flow_by_id_or_name` resolves the subflow by `flow_name_selected`.
+
+### 8. The supervisor canvas's standalone File node crashes text-only turns → removed
+
+`supervisor.json` had a `File` node (`File-ar001`, display "Read File") wired
+`File.message → SupervisorAgentComponent.files`. LangFlow's `File.process_files`
+raises `ValueError("No files to process.")` when its file list is empty, and
+the node runs unconditionally on every graph run — so every text-only supervisor
+turn crashed *before* the supervisor logic ran. The supervisor's `files`
+HandleInput is `required=False` and `classify_intent` handles the no-file case;
+in v1 no file reaches the supervisor via the chat path anyway (adapter file
+forwarding is a no-op against the simplified run API — see [ADR-0004 §8](adr-0004-file-intake-flow.md#live-testing-findings-post-deploy)),
+and file intake is done via the dedicated `ar_file_intake` flow. Removed the
+`File` node + its edge (canvas 14→13 nodes, 13→12 edges). The `files` input is
+now unconnected (None); the file-only classify branch is dormant in v1.
+
+### 9. Conditional edges return `state.status` (path-map keys), not node names
+
+`_after_classify` returned `"respond"`/`"route"` and `_after_gate` returned
+`"respond"`/`"invoke"` (node names), but their `add_conditional_edges` path
+maps are keyed by status — `{"failed":"respond","routed":"route"}` and
+`{"failed":"respond","executing":"invoke"}`. A node-name return value
+`KeyError`s against the status-keyed map → `KeyError('respond')`. Fixed by
+`return state.status` (the path-map keys are the node success statuses, the
+same pattern as the File Intake Flow's `_after_*` functions — ADR-0004).
+
+### 10. `graph.get_state(config).values` is a plain dict → reconstruct `AgentState`
+
+LangGraph 1.2.6's `get_state(config).values` returns a plain dict, not the
+typed dataclass (nodes receive the reconstructed dataclass; the snapshot does
+not). `_finalize_envelope` read `state.trace_id`/`state.matched_amount`/
+`state.pending_approvals` as typed fields → `'dict' object has no attribute
+'trace_id'`. Fixed by a `_to_agent_state(vals)` helper that rebuilds the
+`AgentState` dataclass from the dict, filtering to known fields so a stray
+key never breaks construction (`AgentState(**{k:v for k,v in vals if k in
+known_fields})`). Same pattern as the File Intake Flow's `_state_to_dict`
+(ADR-0004 §11) — both orchestrators now snapshot-via-dict-reconstruction.
+
+### 11. Adapter `input_type: "any"` (not `"text"`) so chat messages reach `ChatInput`
+
+The adapter's `run_flow`/`run_flow_stream` posted `input_type: "text"` to the
+simplified `/run/{flow_id}` API. LangFlow filters input vertices by type:
+`INPUT_TYPE_COMPONENT_TYPES = {'chat': {'ChatInput'}, 'text': {'TextInput'}}`
+(`lfx.graph.graph.base`). The AR flows use **`ChatInput`**, so `"text"`
+silently dropped the user's message — the ChatInput kept its template default
+(`"Hello"`) and the supervisor classified `"Hello"` → `AR_UNCERTAIN` on every
+turn. Fixed by sending `input_type: "any"` (reaches both `ChatInput` and
+`TextInput` — robust for the generic bridge; the AR flows' `ChatInput` is
+included). After the fix, "fetch the outstanding invoices for CUST-001" →
+`intent='ar_fetch_invoices'`, `subflows_invoked=['ar_fetch_invoices']`, and
+"show me the AR aging report" → `intent='ar_reporting'`.
+
+### 12. Empty scaffold subflows produce no RunFlow tools → `AR_NOT_FOUND` (build-phase)
+
+With the above fixed, a real AR intent classifies and routes correctly, then
+the supervisor reports `AR_NOT_FOUND "Subflow '…' is not wired on the canvas."`.
+This is the expected build-phase state: the nine subflows are empty scaffold
+canvases (`data={nodes:[],edges:[]}`), and `RunFlow._get_tools` returns `[]`
+when the selected flow has no tool-mode input fields (`if not tool_mode_inputs:
+return []`). So the supervisor's `tools` dict is empty and the routed subflow
+isn't found. The supervisor reports this **gracefully** (a §14 `error` envelope,
+not a crash). Populating the scaffolds with minimal tool-able flows (a
+ChatInput with a tool-mode input + a stub component returning
+`AR_NOT_IMPLEMENTED`) is part of the subflow-implementation phase, not the
+RunFlow wiring — tracked as a build-phase follow-up.
+
 ## Consequences
 
 - Positive: the supervisor is a real LangGraph graph (not a placeholder);

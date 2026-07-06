@@ -1,7 +1,7 @@
 """Cosmic AR Agent supervisor component (constitution §8, architecture §5).
 
 The supervisor is the single stateful orchestrator. It owns an explicit LangGraph
-``StateGraph[AgentState]`` and drives the nine AR subflows, which are exposed to
+``StateGraph[AgentState]`` and drives the twelve AR subflows, which are exposed to
 it as LangChain tools (one ``RunFlow`` node per subflow on the supervisor flow's
 canvas — see ``cosmic-ar/flows/supervisor.json``). Per §8 the durable,
 checkpointed state is the typed ``AgentState`` (frozen dataclass, immutable
@@ -22,7 +22,7 @@ Responsibilities → LangGraph nodes (architecture §5):
                 subflows). §8 / §2
   - classify  : deterministic intent + doc-type classification; low confidence
                 → ``AR_UNCERTAIN`` (§4 fail-safe) → respond.               §4
-  - route     : map intent → one of the nine subflow tools.               §5
+  - route     : map intent → one of the twelve subflow tools.             §5
   - gate      : §19 tier gate; ``read-only``/``auto`` proceed, ``approval``/
                 ``dual-control`` call ``interrupt()`` to pause for a human. §19
   - invoke    : call the selected RunFlow tool inside the §10 retry/backoff
@@ -71,14 +71,16 @@ from lfx.schema import Message
 from components.ar_common.agent_state import AgentState, Approval
 
 # --------------------------------------------------------------------------- #
-#  Constants — the ten subflows, their tiers (architecture §4), and the
+#  Constants — the twelve subflows, their tiers (architecture §4), and the
 #  deterministic intent router. Tunables belong in Global Variables (§17) at
 #  build phase; these defaults are the v1 policy.
 # --------------------------------------------------------------------------- #
 
-# The ten subflows: nine business subflows + ar_file_intake (the File Intake Flow,
-# added as the 10th — see ADR-0004; architecture §4's "Nine reusable subflows" is
-# amended to "Ten" by that ADR).
+# The twelve subflows: nine business subflows + ar_file_intake (the File Intake
+# Flow, the 10th — ADR-0004) + ar_intercompany_sales (the Intercompany Sales
+# Flow, the 11th — ADR-0005) + ar_kitchen_revenue (the Cosmic Kitchen Revenue
+# Flow, the 12th — ADR-0006; architecture §4's "Nine reusable subflows" is
+# amended to "Twelve" by those ADRs).
 SUBFLOWS: tuple[str, ...] = (
     "ar_fetch_invoices",
     "ar_fetch_receipts",
@@ -90,6 +92,8 @@ SUBFLOWS: tuple[str, ...] = (
     "ar_reporting",
     "ar_approval",
     "ar_file_intake",
+    "ar_intercompany_sales",
+    "ar_kitchen_revenue",
 )
 
 # §19 tiers. read-only/auto proceed unattended; approval/dual-control pause.
@@ -104,6 +108,8 @@ TIER: dict[str, str] = {
     "ar_reporting": "read-only",
     "ar_approval": "approval",
     "ar_file_intake": "read-only",  # parses uploads → DocumentManifest; no mutation (ADR-0004)
+    "ar_intercompany_sales": "approval",  # invoice production intent, but v1 is draft-only — gate dormant (ADR-0005)
+    "ar_kitchen_revenue": "read-only",  # computes + reports Revenue/Collections/Expenses/Net Receivable/Net Payable; no posting (ADR-0006)
 }
 
 # Intent → subflow routing keywords (deterministic v1 classifier).
@@ -122,6 +128,21 @@ INTENT_KEYWORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
     # NO keyword falls through to the file-only branch below (→ ar_file_intake @
     # 0.4, below MIN_CONFIDENCE → AR_UNCERTAIN unless the user adds one). §4/ADR-0004.
     ("ar_file_intake", ("intake", "upload", "parse file", "parse this", "ingest")),
+    # Intercompany Sales: KOT (Kitchen Order Ticket) Excel from intercompany buyer
+    # restaurants (HYP, Upyard) → draft InvoiceData per buyer + Validation/Exception
+    # reports. v1 is compute + draft only (no posting) — ADR-0005. Multi-word / long
+    # keywords score 1.0 and clear MIN_CONFIDENCE.
+    ("ar_intercompany_sales", ("intercompany sales", "inter-company", "intercompany",
+                               "kot", "kitchen order ticket", "kitchen order")),
+    # Cosmic Kitchen Revenue: the four daily kitchen sheets (Menu Sales Analysis,
+    # Daily Sales, Detailed Check Payment, Marriott Backup) → Revenue (Breakfast/
+    # Half Board segments), Collections, Expenses, Net Receivable, Net Payable +
+    # Revenue JSON + Validation/Exception reports. v1 is read-only compute + report
+    # (no posting) — ADR-0006. Multi-word / long keywords score 1.0 and clear
+    # MIN_CONFIDENCE.
+    ("ar_kitchen_revenue", ("kitchen revenue", "kitchen sales", "menu sales",
+                            "daily sales", "check payment", "marriott backup",
+                            "net receivable", "net payable", "kitchen")),
 )
 
 # §4 fail-safe threshold for the deterministic classifier.
@@ -255,6 +276,24 @@ def mint_id() -> str:
     return str(uuid.uuid4())
 
 
+def _to_agent_state(vals: Any) -> AgentState:
+    """Reconstruct the typed ``AgentState`` from a checkpointer snapshot.
+
+    LangGraph's ``graph.get_state(config).values`` returns a plain dict, not
+    the typed dataclass (nodes receive the reconstructed dataclass, but the
+    snapshot does not). ``_finalize_envelope`` reads typed fields
+    (``trace_id``, ``matched_amount`` as Decimal, ``pending_approvals`` as a
+    list of ``Approval`` objects), so rebuild the dataclass from the dict,
+    filtering to known fields so a stray key never breaks construction.
+    """
+    if isinstance(vals, AgentState):
+        return vals
+    if isinstance(vals, dict):
+        known = {f.name for f in dataclasses.fields(AgentState)}
+        return AgentState(**{k: v for k, v in vals.items() if k in known})
+    return vals  # type: ignore[return-value]
+
+
 def derive_idempotency_key(action: str, entity_ref: str, nonce: str) -> str:
     """§10 idempotency key: ``ar-idem:<action>:<entity>:<nonce>``."""
     safe_action = re.sub(r"[^a-z0-9_]+", "_", (action or "").lower()) or "action"
@@ -337,8 +376,13 @@ def _node_classify(state: AgentState, runtime: Runtime[SupervisorContext]) -> di
 
 
 def _after_classify(state: AgentState) -> str:
-    """Conditional edge: failed → respond, else → route."""
-    return "respond" if state.status == "failed" else "route"
+    """Conditional edge: failed → respond, else → route.
+
+    Path-map keys are the node success statuses ("failed"/"routed"); returning
+    state.status routes "failed"→respond and "routed"→route. Returning a node
+    name here (e.g. "respond") would KeyError against the path map.
+    """
+    return state.status
 
 
 def _node_route(state: AgentState, runtime: Runtime[SupervisorContext]) -> dict:
@@ -402,8 +446,13 @@ def _node_gate(state: AgentState, runtime: Runtime[SupervisorContext]) -> dict:
 
 
 def _after_gate(state: AgentState) -> str:
-    """Conditional edge: rejected → respond, approved/auto → invoke."""
-    return "respond" if state.status == "failed" else "invoke"
+    """Conditional edge: rejected → respond, approved/auto → invoke.
+
+    Path-map keys are the node success statuses ("failed"/"executing"); returning
+    state.status routes "failed"→respond and "executing"→invoke. Returning a
+    node name here would KeyError against the path map.
+    """
+    return state.status
 
 
 def _is_transient(exc: BaseException) -> bool:
@@ -600,7 +649,7 @@ class SupervisorAgentComponent(Component):
         MessageTextInput(
             name="model_name",
             display_name="Model",
-            value="gpt-4o-mini",
+            value="glm-5.2:cloud",
             info="LLM model used for intent classification and routing (v1: deterministic; LLM hook is build-phase).",
             tool_mode=True,
         ),
@@ -742,7 +791,7 @@ class SupervisorAgentComponent(Component):
         """
         _ = ctx  # envelope is state-derived; context already merged into state
         snapshot = graph.get_state(config)
-        state: AgentState = snapshot.values  # type: ignore[assignment]
+        state: AgentState = _to_agent_state(snapshot.values)
         pending = getattr(snapshot, "next", None)
         base = {
             "trace_id": state.trace_id, "flow_id": state.flow_id, "tenant": state.tenant,

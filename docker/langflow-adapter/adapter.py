@@ -319,7 +319,15 @@ def run_flow(flow_id, text, session_id=None, files=None):
     `_validate_public_files` requires each to be `{flow_id}/{basename}`, which
     the upload endpoint produces. The supervisor's File node receives them.
     """
-    body = {"input_value": text, "input_type": "text", "output_type": "text"}
+    # `input_type: "any"` (not "text") so the simplified /run API injects
+    # `input_value` into the flow's input node regardless of its type.
+    # LangFlow's run API filters input vertices by type: "text" only reaches
+    # TextInput nodes, "chat" only ChatInput. The AR flows (supervisor, intake)
+    # use ChatInput, so "text" silently dropped the user's message and the
+    # supervisor classified the ChatInput's default ("Hello") → AR_UNCERTAIN on
+    # every turn. "any" reaches both ChatInput and TextInput (robust for the
+    # generic bridge) and is the value that makes chat messages arrive.
+    body = {"input_value": text, "input_type": "any", "output_type": "text"}
     if session_id:
         body["session_id"] = session_id
     if files:
@@ -350,7 +358,7 @@ def run_flow_stream(flow_id, text, session_id=None, files=None):
     forwarded to avoid echoing the same text twice. `files` is forwarded the
     same way as in `run_flow`.
     """
-    body = {"input_value": text, "input_type": "text", "output_type": "text", "stream": True}
+    body = {"input_value": text, "input_type": "any", "output_type": "text", "stream": True}
     if session_id:
         body["session_id"] = session_id
     if files:

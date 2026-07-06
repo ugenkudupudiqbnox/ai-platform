@@ -896,7 +896,7 @@ class FileIntakeFlowComponent(Component):
         MessageTextInput(
             name="model_name",
             display_name="Model",
-            value="gpt-4o-mini",
+            value="glm-5.2:cloud",
             info="LLM model hook (v1: deterministic detect/classify/extract; LLM path is build-phase).",
             tool_mode=True,
         ),

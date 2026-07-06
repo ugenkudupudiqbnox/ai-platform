@@ -11,7 +11,7 @@ runtime bundles. **No business logic is implemented here yet** — see
 - [Project Constitution](../docs/cosmic-ar-constitution.md) — the binding
   engineering standards (state §8, error handling §9, retry §10, checkpoint §11,
   envelope §14, security §16, human approval §19, AP extension §20).
-- [Architecture](../docs/cosmic-ar-architecture.md) — supervisor + ten
+- [Architecture](../docs/cosmic-ar-architecture.md) — supervisor + twelve
   subflows + shared components + LangGraph state + checkpoint/retry/error
   designs, with mermaid diagrams.
 
@@ -53,12 +53,19 @@ logic.
 
 ### Flow import files
 
-[`flows/`](flows/) holds 11 LangFlow export skeletons: the **wired** supervisor
+[`flows/`](flows/) holds 13 LangFlow export skeletons: the **wired** supervisor
 flow, the **wired** File Intake Flow (`ar_file_intake`, the 10th subflow — see
 [docs/file-intake.md](docs/file-intake.md) and
-[ADR-0004](docs/adr/adr-0004-file-intake-flow.md)), and nine placeholder business
-subflows. Flow **definitions** live in the LangFlow Postgres DB (constitution
-§7), not on disk — these JSONs are import artifacts, not auto-loaded.
+[ADR-0004](docs/adr/adr-0004-file-intake-flow.md)), the **wired** Intercompany
+Sales Flow (`ar_intercompany_sales`, the 11th subflow — see
+[docs/intercompany-sales.md](docs/intercompany-sales.md) and
+[ADR-0005](docs/adr/adr-0005-intercompany-sales-flow.md)), the **wired** Cosmic
+Kitchen Revenue Flow (`ar_kitchen_revenue`, the 12th subflow — see
+[docs/kitchen-revenue.md](docs/kitchen-revenue.md) and
+[ADR-0006](docs/adr/adr-0006-kitchen-revenue-flow.md)), and nine placeholder
+business subflows. Flow **definitions** live in the LangFlow Postgres DB
+(constitution §7), not on disk — these JSONs are import artifacts, not
+auto-loaded.
 
 ## Status
 
@@ -67,8 +74,14 @@ file/approval forwarding); see [docs/supervisor.md](docs/supervisor.md) and
 [ADR-0003](docs/adr/adr-0003-supervisor-runflow-and-adapter.md). The **File
 Intake Flow** is implemented (real LangGraph + wired canvas + real readers/
 classifier/validator); see [docs/file-intake.md](docs/file-intake.md) and
-[ADR-0004](docs/adr/adr-0004-file-intake-flow.md). Remaining build-phase work
-(not done here):
+[ADR-0004](docs/adr/adr-0004-file-intake-flow.md). The **Intercompany Sales
+Flow** is implemented (real LangGraph + wired canvas + deterministic KOT →
+draft invoice); see [docs/intercompany-sales.md](docs/intercompany-sales.md) and
+[ADR-0005](docs/adr/adr-0005-intercompany-sales-flow.md). The **Cosmic Kitchen
+Revenue Flow** is implemented (real LangGraph + wired canvas + deterministic
+four-sheet → revenue report); see [docs/kitchen-revenue.md](docs/kitchen-revenue.md)
+and [ADR-0006](docs/adr/adr-0006-kitchen-revenue-flow.md). Remaining build-phase
+work (not done here):
 
 1. ~~Implement the LangGraph `StateGraph[AgentState]` + checkpointer in
    `SupervisorAgentComponent`.~~ ✓ Done (in-image `InMemorySaver`; durable
@@ -78,10 +91,12 @@ classifier/validator); see [docs/file-intake.md](docs/file-intake.md) and
 3. Implement the FOODICS calls in `FoodicsARTool`.
 4. Implement the nine business subflows' logic (the supervisor delegates to
    them; their internals are separate tasks). The File Intake Flow (10th
-   subflow) is done.
+   subflow), the Intercompany Sales Flow (11th subflow), and the Cosmic Kitchen
+   Revenue Flow (12th subflow) are done.
 5. Wire the nine business subflows in the LangFlow UI and import their real
-   flow JSONs (the nine skeletons here are still placeholders; `supervisor.json`
-   and `ar_file_intake.json` are wired — import the ten subflows first, then
+   flow JSONs (the nine skeletons here are still placeholders; `supervisor.json`,
+   `ar_file_intake.json`, `ar_intercompany_sales.json` and
+   `ar_kitchen_revenue.json` are wired — import the twelve subflows first, then
    the supervisor, per [flows/README.md](flows/README.md)).
 6. Provision the `ar_agent` Postgres DB and swap `InMemorySaver` →
    `langgraph-checkpoint-postgres` (durable resume — see build-phase
@@ -144,10 +159,14 @@ python3 -m py_compile docker/langflow-extensions/ar_common/components/ar_common/
                      docker/langflow-adapter/adapter_selftest.py
 python3 -c "import json; json.load(open('cosmic-ar/flows/supervisor.json'))"
 python3 -c "import json; json.load(open('cosmic-ar/flows/ar_file_intake.json'))"
+python3 -c "import json; json.load(open('cosmic-ar/flows/ar_intercompany_sales.json'))"
+python3 -c "import json; json.load(open('cosmic-ar/flows/ar_kitchen_revenue.json'))"
 bash scripts/file-intake.selftest.sh   # 86 pure-function checks (file intake)
-shellcheck -x docker/postgres/init/02-ar-agent-db.sh scripts/adapter.selftest.sh scripts/file-intake.selftest.sh
+bash scripts/intercompany-sales.selftest.sh   # 135 pure-function checks (intercompany sales)
+bash scripts/kitchen-revenue.selftest.sh   # 199 pure-function checks (kitchen revenue)
+shellcheck -x docker/postgres/init/02-ar-agent-db.sh scripts/adapter.selftest.sh scripts/file-intake.selftest.sh scripts/intercompany-sales.selftest.sh scripts/kitchen-revenue.selftest.sh
 make validate
-make test        # includes adapter.selftest.sh (43 checks) + file-intake.selftest.sh (86 checks)
+make test        # adapter.selftest.sh (43) + file-intake.selftest.sh (86) + intercompany-sales.selftest.sh (135) + kitchen-revenue.selftest.sh (199)
 # Post-deploy (running stack):
 docker exec langflow python -m lfx extension validate /app/extensions/ar_common
 docker exec langflow python -m lfx extension validate /app/extensions/ar_tools
