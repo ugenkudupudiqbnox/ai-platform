@@ -151,11 +151,12 @@ for the full rationale. Operational summary:
 1. **Rebuild the `langflow` image** so `openpyxl`/`pdfplumber` are available
    (`docker compose build langflow langflow-worker`) — CSV works without a
    rebuild; Excel/PDF do not.
-2. **Import the fourteen subflows first** (incl. `ar_file_intake.json`,
+2. **Import the fifteen subflows first** (incl. `ar_file_intake.json`,
    `ar_intercompany_sales.json`, `ar_kitchen_revenue.json`,
-   `ar_foodics_processing.json`, and `ar_calculation.json`), then
-   `supervisor.json`; open the supervisor flow so each `RunFlow` node (incl. the
-   10th/11th/12th/13th/14th) resolves `flow_id_selected`.
+   `ar_foodics_processing.json`, `ar_calculation.json`, and
+   `ar_invoice_generation.json`), then `supervisor.json`; open the supervisor
+   flow so each `RunFlow` node (incl. the 10th/11th/12th/13th/14th/15th) resolves
+   `flow_id_selected`.
 3. Confirm `jsonschema` availability (or keep hand-rolled) when other contracts
    are implemented.
 4. Swap `InMemorySaver` → Postgres saver for the supervisor's approval round-trip

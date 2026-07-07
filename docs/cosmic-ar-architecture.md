@@ -1,7 +1,7 @@
 # Cosmic AR Agent — Architecture
 
 The architecture that realizes the [Project Constitution](cosmic-ar-constitution.md).
-One Supervisor Agent, fourteen reusable LangFlow subflows, shared `lfx` Components,
+One Supervisor Agent, fifteen reusable LangFlow subflows, shared `lfx` Components,
 explicit LangGraph state, and the supporting retry / checkpoint / error-recovery
 architectures. **This is a design document — no flows are implemented here.** The
 folder structure and component names/signatures below make the later build phase
@@ -17,7 +17,7 @@ mechanical.
 The Cosmic AR Agent is a single LangFlow flow whose core node is a custom
 `SupervisorAgentComponent`. That component builds an explicit LangGraph
 `StateGraph[AgentState]` (typed dataclass state, immutable updates) with a
-Postgres-backed LangGraph checkpointer. The supervisor drives fourteen reusable
+Postgres-backed LangGraph checkpointer. The supervisor drives fifteen reusable
 LangFlow subflows, exposed to it as LangChain tools via the built-in **Flow as
 Tool** node (`FlowToolComponent`). Entry and human-approval happen through the
 existing LibreChat → OpenAI-adapter → LangFlow path (`model` = supervisor flow
@@ -60,7 +60,7 @@ flowchart LR
   (`docker/langflow-adapter/adapter.py`); it runs one flow per request and does no
   routing, so all dispatch lives inside the supervisor flow.
 - **Orchestration:** `SupervisorAgentComponent` (a custom `lfx` Component) holds the
-  LangGraph `StateGraph[AgentState]` and a checkpointer; the fourteen subflows are its
+  LangGraph `StateGraph[AgentState]` and a checkpointer; the fifteen subflows are its
   tools.
 - **State & resume:** checkpoints in a dedicated `ar_agent` Postgres DB — the source
   of truth for resume because Langfuse tracing is currently off (§11 caveat, see
@@ -70,7 +70,7 @@ flowchart LR
 
 ## 3. Component Diagram
 
-The shared `lfx` Components (reused across the fourteen subflows) and the source-system
+The shared `lfx` Components (reused across the fifteen subflows) and the source-system
 tools. Each is labelled with the constitution section it implements. The
 `cosmic_common` readers (Excel/CSV/PDF), document classifier, and validation
 engine are implemented (ADR-0004); the remaining `cosmic_common` components are
@@ -118,7 +118,7 @@ graph TB
   `FoodicsAPTool`) is **not** AR-reused — its operations are AP-oriented — but it is
   the template for `ar_tools`, and the seed for the future AP extension (§20).
 
-## 4. Fourteen reusable LangFlow subflows
+## 4. Fifteen reusable LangFlow subflows
 
 Each subflow is a LangFlow flow (definition stored in the LangFlow Postgres DB, not
 on disk — §7), exposed to the supervisor via **Flow as Tool**. IDs follow `ar_<verb>
@@ -140,6 +140,7 @@ _<object>` (§6); tiers follow §19.
 | 12 | `ar_kitchen_revenue` | Read the four Cosmic Kitchen sheets (Menu Sales Analysis, Daily Sales, Detailed Check Payment, Marriott Backup); compute Revenue (Breakfast/Half Board segments), Collections, Expenses, Net Receivable, Net Payable; generate Revenue JSON + Validation/Exception reports | read-only | Envelope, Validation, Checkpoint, Audit | File node (4-sheet upload) |
 | 13 | `ar_foodics_processing` | Read Foodics Order + Order Items + Order Payments (export files or Foodics API); build a consolidated dataset + pivot + payment-type breakdown; apply discount rules; generate a Zoho Books upload format + draft `InvoiceData` per order + Validation/Exception reports | approval (v1 draft-only) | Envelope, Validation, Checkpoint, Audit | File node (3-sheet upload) / Foodics API |
 | 14 | `ar_calculation` | Read validated JSON (P10 Validation Flow output — aggregated facts + parameters); compute Revenue/Discount/VAT/Municipality Tax/Royalty/Collections/Expenses/Net Receivable/Net Payable via the Business Rule Engine (zero hardcoded formulas); emit a `CalculationResult` + Validation/Exception reports | read-only | Envelope, Validation, Checkpoint, Audit | Validated JSON input (P10 Validation Flow output) |
+| 15 | `ar_invoice_generation` | Read a validated-JSON invoice request (customer_ref, line_items, totals, issue_date, currency); assemble a draft `InvoiceData`; generate Invoice JSON / PDF render-spec / Excel render-spec / draft Journal Entry / Customer Statement / Zoho Upload File / Invoice Metadata + WorkflowState as JSON-in-envelope; no posting | read-only | Envelope, Validation, Checkpoint, Audit | Validated JSON invoice request |
 
 > Row 10 (`ar_file_intake`) is added by [ADR-0004](../cosmic-ar/docs/adr/adr-0004-file-intake-flow.md),
 > amending this section's original "Nine reusable subflows" to "Ten". Row 11
@@ -152,7 +153,9 @@ _<object>` (§6); tiers follow §19.
 > [ADR-0008](../cosmic-ar/docs/adr/adr-0008-calculation-flow.md), further
 > amending it to "Fourteen" and recording a §55 waiver (VAT/Municipality Tax/
 > Royalty are computed as invoice/reconciliation figures, not a statutory
-> filing). `ar_file_intake` is the only subflow that
+> filing). Row 15 (`ar_invoice_generation`) is added by
+> [ADR-0009](../cosmic-ar/docs/adr/adr-0009-invoice-generation-flow.md), further
+> amending it to "Fifteen". `ar_file_intake` is the only subflow that
 > parses user-uploaded files; its manifest is returned in the §14 envelope
 > `data.manifest` (not added to `AgentState`). The supervisor routes a file-only
 > upload (no intent keyword) to it at 0.4 (below `MIN_CONFIDENCE` →
@@ -202,6 +205,27 @@ _<object>` (§6); tiers follow §19.
 > ADR-0008 §11) and records a §55 waiver (VAT/Municipality Tax/Royalty as
 > figures, not statutory filing — ADR-0008 §2).
 
+> Row 15 (`ar_invoice_generation`) is **read-only generate + draft in v1**: it
+> reads a validated-JSON invoice request (customer_ref, line_items, totals,
+> issue_date, currency), assembles a draft `InvoiceData`, and generates eight
+> artifacts — Invoice JSON, Invoice PDF render-spec, Invoice Excel render-spec,
+> draft Journal Entry, Customer Statement, Zoho Upload File, Invoice Metadata,
+> plus WorkflowState — as JSON-in-envelope, returning `AR_OK` — no posting, no
+> idempotency key, no `pending_approval`, not in `FINANCIAL_INTENTS` (mirrors
+> row 14, ADR-0009 §2). The PDF/Excel artifacts are **render-ready JSON specs in
+> v1** (binary materialization is build-phase — ADR-0009 §5); the Journal Entry
+> is a balanced draft (`status="draft"`, no POST — §1). Its artifacts are not
+> recognized `data.totals` keys, so they stay in the envelope `data` (no
+> `AgentState` schema change — ADR-0009 §4). It records a checkpoint **after
+> every generation step** (8 labels), continuing rows 12/13/14's stricter
+> pattern (ADR-0009 §11). It is the second subflow with **no `files` input**
+> (the invoice request arrives as JSON — ADR-0009 §4). It is distinct from row 7
+> `ar_issue_invoice`, which **posts** the invoice to Zoho at tier `approval`;
+> this flow only **generates draft artifacts for review**. Its `INTENT_KEYWORDS`
+> are placed before `ar_fetch_invoices` so "generate invoice" / "draft invoice"
+> / "invoice pdf" etc. are not shadowed by `ar_fetch_invoices`' bare "invoice"
+> keyword (ADR-0009 §3).
+
 > `ar_approval` is the shared human-in-the-loop gate (§19). Any subflow whose tier
 > is `approval` or `dual-control` routes through it; it writes the checkpoint and
 > returns `pending_approval` in the envelope (§14) until fulfilled.
@@ -228,6 +252,7 @@ stateDiagram-v2
   route --> kitchen_revenue
   route --> foodics_processing
   route --> calculation
+  route --> invoice_generation
   match --> approvalGate
   post_gl --> approvalGate
   issue_invoice --> approvalGate
@@ -240,6 +265,7 @@ stateDiagram-v2
   kitchen_revenue --> effect
   foodics_processing --> effect
   calculation --> effect
+  invoice_generation --> effect
   reconcile --> effect
   dunning --> effect
   reporting --> effect

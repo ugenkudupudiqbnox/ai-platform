@@ -1,7 +1,7 @@
 # Cosmic AR Supervisor — operational reference
 
 The supervisor is the single stateful orchestrator. It owns an explicit LangGraph
-`StateGraph[AgentState]` and drives the fourteen reusable AR subflows, which are
+`StateGraph[AgentState]` and drives the fifteen reusable AR subflows, which are
 exposed to it as LangChain tools (one `RunFlow` node per subflow on the canvas).
 This document is the operational companion to the implementation in
 [`../docker/langflow-extensions/ar_common/components/ar_common/supervisor.py`](../docker/langflow-extensions/ar_common/components/ar_common/supervisor.py)
@@ -23,7 +23,7 @@ The 11 responsibilities map to nodes inside `SupervisorAgentComponent`
 | Accept uploaded files | `ingest` | Binds `trace_id` (minted), `flow_id`, `tenant`, timestamps; carries the `files` refs (from the canvas `File` node / adapter-uploaded files) into the run as **context** (not state — §8 keeps raw inputs out of the checkpoint). |
 | Build document manifest | `ingest` | The file refs are the manifest seed; parsing is delegated to the readers inside the routed subflow (the supervisor holds references only). |
 | Identify report types | `classify` | Deterministic keyword classifier (v1, no LLM key); below `MIN_CONFIDENCE` → `AR_UNCERTAIN` (§4 fail-safe) → `respond`. |
-| Determine execution path | `route` | Maps intent → one of the fourteen subflow tools. On a resume (user text carries an `approval_ref`) records `ar_approval` so the gate's interrupt is reached. |
+| Determine execution path | `route` | Maps intent → one of the fifteen subflow tools. On a resume (user text carries an `approval_ref`) records `ar_approval` so the gate's interrupt is reached. |
 | Maintain LangGraph state | (graph) | `StateGraph[AgentState]`; nodes return fragments merged immutably (§8). Orchestration fields (`status`/`error`/`created_at`/`updated_at`) were added to `AgentState` to match architecture §7's lifecycle (see ADR-0003 §3). |
 | Invoke child flows | `invoke` | Calls the selected `RunFlow` LangChain tool. **Never computes** financial amounts — delegates to the subflow. |
 | Collect outputs | `invoke` | Parses the subflow's §14 envelope; merges `matched/outstanding/posted` totals, `audit_refs`, `pending_approvals` into state without recomputing (v1: single subflow per run ⇒ set, not accumulate). |
@@ -34,7 +34,7 @@ The 11 responsibilities map to nodes inside `SupervisorAgentComponent`
 
 ## Canvas wiring (`flows/supervisor.json`)
 
-17 nodes, 16 edges:
+18 nodes, 17 edges:
 
 ```
 ChatInput ──message──► SupervisorAgentComponent ──supervisor_output──► ChatOutput
@@ -51,7 +51,8 @@ RunFlow(ar_file_intake) ──component_as_tool────┤
 RunFlow(ar_intercompany_sales) ──component_as_tool┤
 RunFlow(ar_kitchen_revenue) ──component_as_tool──┤
 RunFlow(ar_foodics_processing) ──component_as_tool──┤
-RunFlow(ar_calculation) ──component_as_tool──┘
+RunFlow(ar_calculation) ──component_as_tool──────┤
+RunFlow(ar_invoice_generation) ──component_as_tool──┘
 ```
 
 - Each node carries its full component source as `template.code.value`
@@ -130,10 +131,11 @@ per §5/§9 — it catches at the boundary and returns an `AR_UNEXPECTED` envelo
 
 - [ ] Provision the `ar_agent` DB + bake `langgraph-checkpoint-postgres` +
       wire `AR_AGENT_DB_*` onto `langflow` (durable checkpointer).
-- [ ] Import the fourteen subflow placeholders (incl. the wired `ar_file_intake`,
+- [ ] Import the fifteen subflow placeholders (incl. the wired `ar_file_intake`,
       `ar_intercompany_sales`, `ar_kitchen_revenue`, `ar_foodics_processing`,
-      and `ar_calculation`), then `supervisor.json`; open the supervisor flow so
-      each `RunFlow` node resolves `flow_id_selected`.
+      `ar_calculation`, and `ar_invoice_generation`), then `supervisor.json`;
+      open the supervisor flow so each `RunFlow` node resolves
+      `flow_id_selected`.
 - [ ] Set `LANGFLOW_ADAPTER_FLOW_IDS` (in `.env`) to the supervisor UUID.
 - [ ] Optional: wire an LLM classifier behind `model_name` (deterministic v1
       needs no API key).

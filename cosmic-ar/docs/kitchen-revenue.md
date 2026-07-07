@@ -138,7 +138,7 @@ v1 is **read-only compute + report** — no §19 gate, no idempotency key, no
 2. **Rebuild the `langflow` image** so `openpyxl` is available for `.xlsx`
    sheets (`docker compose build langflow langflow-worker`) — already required
    by the File Intake Flow (ADR-0004 §3); CSV works without a rebuild.
-3. **Import the fourteen subflows first** (incl. `ar_kitchen_revenue.json`),
+3. **Import the fifteen subflows first** (incl. `ar_kitchen_revenue.json`),
    then `supervisor.json`; open the supervisor flow so the 12th `RunFlow`
    resolves `flow_id_selected`.
 4. **Wire `ValidationEngineComponent`** for `RevenueData`/`CollectionData`/

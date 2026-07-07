@@ -244,7 +244,7 @@ done here):
    the posting flow to `FINANCIAL_INTENTS` (this flow stays `read-only`).
 5. **Statutory filing** — a separate VAT/Zakat returns flow (still §55
    out-of-scope here).
-6. **Import the fourteen subflows first** (incl. `ar_calculation.json`), then
+6. **Import the fifteen subflows first** (incl. `ar_calculation.json`), then
    `supervisor.json`; open the supervisor flow so the 14th `RunFlow` resolves
    `flow_id_selected`; `docker compose restart langflow`.
 7. **Swap `InMemorySaver` → Postgres saver** (shared with the supervisor —
