@@ -2,7 +2,7 @@
   "trace_id": "ar-trace-07f3a1d2",
   "flow_id": "9b1d4e7a-3c8f-4a2b-9e6d-1f2a3b4c5d6e",
   "tenant": "cosmic-vikings-ksa",
-  "intent": "post_received_payment",
+  "intent": "issue_invoice",
   "status": "awaiting_approval",
   "matched_amount": "1500.00",
   "outstanding_balance": "3500.00",

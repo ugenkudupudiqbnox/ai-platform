@@ -1,6 +1,6 @@
 # Human Approval Flow (`ar_approval`)
 
-The **Human Approval Flow** is the 9th AR subflow (architecture §4 row 9;
+The **Human Approval Flow** is the 2nd AR subflow (architecture §4 row 2;
 [ADR-0010](adr/adr-0010-approval-flow.md)). It is the **presentational approval
 surface** for the AR Agent: an operator/upstream caller submits a
 **validated-JSON review packet** (the Revenue/Expense/Invoice summaries + the
@@ -105,7 +105,7 @@ caller's responsibility — the flow presents, it does not compute):
 {
   "trace_id": "ar-trace-07f3a1d2",
   "tenant": "cosmic-vikings",
-  "action": "ar_post_gl",
+  "action": "ar_issue_invoice",
   "amount": "1250.00",
   "currency": "SAR",
   "tier": "approval",
@@ -226,7 +226,7 @@ validators in sync (hand-rolled stdlib, no `jsonschema` dep).
    shows approve/reject only.
 5. **Swap `InMemorySaver` → Postgres saver** (shared with the supervisor —
    ADR-0003 build-phase; this flow follows for free).
-6. **Import the sixteen subflows first** (incl. the now-wired `ar_approval.json`),
+6. **Import the nine subflows first** (incl. the now-wired `ar_approval.json`),
    then `supervisor.json`; open the supervisor flow so `RunFlow(ar_approval)`
    resolves `flow_id_selected`; `docker compose restart langflow`.
 

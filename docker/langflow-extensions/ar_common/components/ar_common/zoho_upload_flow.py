@@ -1,8 +1,8 @@
 """Cosmic AR Agent — Zoho Upload Flow component (constitution §1/§8/§9/§10/§11/
-§13/§14/§16/§19, architecture §4 row 7).
+§13/§14/§16/§19, architecture §4 row 1).
 
-The Zoho Upload Flow is the **7th AR subflow** (ADR-0011) — it implements
-``ar_issue_invoice`` (architecture §4 row 7), the row that **POSTs** an invoice
+The Zoho Upload Flow is the **1st AR subflow** (ADR-0011) — it implements
+``ar_issue_invoice`` (architecture §4 row 1), the row that **POSTs** an invoice
 to Zoho Books. It is distinct from ``ar_invoice_generation`` (#15, ADR-0009),
 which only *generates a draft "Zoho Upload File" artifact* — this flow *issues*
 the invoice: it takes a **validated-JSON ``ZohoUploadRequest``** wrapper (a §1
@@ -1098,7 +1098,7 @@ class ZohoUploadFlowComponent(Component):
     name = "ZohoUploadFlowComponent"
     display_name = "Cosmic AR Zoho Upload Flow"
     description = (
-        "The Zoho Upload Flow for the Cosmic AR Agent (ar_issue_invoice, the 7th "
+        "The Zoho Upload Flow for the Cosmic AR Agent (ar_issue_invoice, the 1st "
         "subflow): takes a validated-JSON ZohoUploadRequest "
         "({approval_ref, invoices:[InvoiceData,…]}) — §1 approval_ref required at "
         "the boundary (no in-flow interrupt) — validates each invoice's "

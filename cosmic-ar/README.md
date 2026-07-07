@@ -11,7 +11,7 @@ runtime bundles. **No business logic is implemented here yet** — see
 - [Project Constitution](../docs/cosmic-ar-constitution.md) — the binding
   engineering standards (state §8, error handling §9, retry §10, checkpoint §11,
   envelope §14, security §16, human approval §19, AP extension §20).
-- [Architecture](../docs/cosmic-ar-architecture.md) — supervisor + sixteen
+- [Architecture](../docs/cosmic-ar-architecture.md) — supervisor + nine
   subflows + shared components + LangGraph state + checkpoint/retry/error
   designs, with mermaid diagrams.
 
@@ -20,7 +20,7 @@ runtime bundles. **No business logic is implemented here yet** — see
 | What | Where | Loaded by LangFlow? |
 |------|-------|---------------------|
 | Runtime bundles (components) | [`../docker/langflow-extensions/ar_common/`](../docker/langflow-extensions/ar_common/), [`../docker/langflow-extensions/ar_tools/`](../docker/langflow-extensions/ar_tools/), [`../docker/langflow-extensions/cosmic_common/`](../docker/langflow-extensions/cosmic_common/) | Yes — `:ro` bind-mount at `/app/extensions` |
-| Flow import files (placeholders) | [`flows/`](flows/) | No — import into the LangFlow DB |
+| Flow import files | [`flows/`](flows/) | No — import into the LangFlow DB |
 | Dependency list | [`requirements.txt`](requirements.txt) | No — documentation only |
 | JSON contracts | [`contracts/`](contracts/) + [`docs/contracts.md`](docs/contracts.md) | No — design artifacts |
 | Environment variables | [`docs/environment.md`](docs/environment.md) | n/a |
@@ -53,36 +53,34 @@ logic.
 
 ### Flow import files
 
-[`flows/`](flows/) holds 17 LangFlow export skeletons: the **wired** supervisor
-flow, the **wired** File Intake Flow (`ar_file_intake`, the 10th subflow — see
-[docs/file-intake.md](docs/file-intake.md) and
-[ADR-0004](docs/adr/adr-0004-file-intake-flow.md)), the **wired** Intercompany
-Sales Flow (`ar_intercompany_sales`, the 11th subflow — see
-[docs/intercompany-sales.md](docs/intercompany-sales.md) and
-[ADR-0005](docs/adr/adr-0005-intercompany-sales-flow.md)), the **wired** Cosmic
-Kitchen Revenue Flow (`ar_kitchen_revenue`, the 12th subflow — see
+[`flows/`](flows/) holds 10 LangFlow export skeletons: the **wired** supervisor
+flow plus the **nine wired subflows** — the Zoho Upload Flow (`ar_issue_invoice`,
+architecture §4 row 1 — see [docs/zoho-upload-flow.md](docs/zoho-upload-flow.md)
+and [ADR-0011](docs/adr/adr-0011-zoho-upload-flow.md)), the Human Approval Flow
+(`ar_approval`, row 2 — see [docs/approval-flow.md](docs/approval-flow.md) and
+[ADR-0010](docs/adr/adr-0010-approval-flow.md)), the File Intake Flow
+(`ar_file_intake`, row 3 — see [docs/file-intake.md](docs/file-intake.md) and
+[ADR-0004](docs/adr/adr-0004-file-intake-flow.md)), the Intercompany Sales Flow
+(`ar_intercompany_sales`, row 4 — see [docs/intercompany-sales.md](docs/intercompany-sales.md)
+and [ADR-0005](docs/adr/adr-0005-intercompany-sales-flow.md)), the Cosmic Kitchen
+Revenue Flow (`ar_kitchen_revenue`, row 5 — see
 [docs/kitchen-revenue.md](docs/kitchen-revenue.md) and
-[ADR-0006](docs/adr/adr-0006-kitchen-revenue-flow.md)), the **wired** Foodics
-Processing Flow (`ar_foodics_processing`, the 13th subflow — see
+[ADR-0006](docs/adr/adr-0006-kitchen-revenue-flow.md)), the Foodics Processing
+Flow (`ar_foodics_processing`, row 6 — see
 [docs/foodics-processing.md](docs/foodics-processing.md) and
-[ADR-0007](docs/adr/adr-0007-foodics-processing-flow.md)), the **wired**
-Calculation Flow (`ar_calculation`, the 14th subflow — see
-[docs/calculation.md](docs/calculation.md) and
-[ADR-0008](docs/adr/adr-0008-calculation-flow.md)), the **wired** Invoice
-Generation Flow (`ar_invoice_generation`, the 15th subflow — see
-[docs/invoice-generation.md](docs/invoice-generation.md) and
-[ADR-0009](docs/adr/adr-0009-invoice-generation-flow.md)), the **wired** Human
-Approval Flow (`ar_approval`, the 9th subflow — see
-[docs/approval-flow.md](docs/approval-flow.md) and
-[ADR-0010](docs/adr/adr-0010-approval-flow.md)), the **wired** Zoho Upload
-Flow (`ar_issue_invoice`, the 7th subflow — see
-[docs/zoho-upload-flow.md](docs/zoho-upload-flow.md) and
-[ADR-0011](docs/adr/adr-0011-zoho-upload-flow.md)), the **wired** Audit Flow
-(`ar_audit`, the 16th subflow — see [docs/audit-flow.md](docs/audit-flow.md) and
-[ADR-0012](docs/adr/adr-0012-audit-flow.md)), and seven placeholder
-business subflows. Flow **definitions** live in the LangFlow Postgres DB
-(constitution §7), not on disk — these JSONs are import artifacts, not
-auto-loaded.
+[ADR-0007](docs/adr/adr-0007-foodics-processing-flow.md)), the Calculation Flow
+(`ar_calculation`, row 7 — see [docs/calculation.md](docs/calculation.md) and
+[ADR-0008](docs/adr/adr-0008-calculation-flow.md)), the Invoice Generation Flow
+(`ar_invoice_generation`, row 8 — see [docs/invoice-generation.md](docs/invoice-generation.md)
+and [ADR-0009](docs/adr/adr-0009-invoice-generation-flow.md)), and the Audit Flow
+(`ar_audit`, row 9 — see [docs/audit-flow.md](docs/audit-flow.md) and
+[ADR-0012](docs/adr/adr-0012-audit-flow.md)). Flow **definitions** live in the
+LangFlow Postgres DB (constitution §7), not on disk — these JSONs are import
+artifacts, not auto-loaded. (Seven reserved placeholder business subflows —
+`ar_fetch_invoices`/`ar_fetch_receipts`/`ar_match_payments`/`ar_reconcile`/
+`ar_dunning`/`ar_post_gl`/`ar_reporting` — were never implemented and were
+retired by [ADR-0013](docs/adr/adr-0013-retire-placeholder-subflows.md), which
+renumbered architecture §4 to the nine implemented flows above.)
 
 ## Status
 
@@ -135,8 +133,7 @@ files/validation reports/calculation results/invoices/approvals/Zoho upload
 results/execution time/errors/warnings → synthesize an immutable §13 audit log
 (append-only AuditRecords, one per artifact + a terminal `audit.summary`) +
 `ExecutionSummary` + `WorkflowState`; pure compute, no transport — Postgres/
-Langfuse persistence build-phase; the 16th subflow, count Fifteen→Sixteen,
-wired into the supervisor via `RunFlow-ar16`); see
+Langfuse persistence build-phase; architecture §4 row 9); see
 [docs/audit-flow.md](docs/audit-flow.md) and
 [ADR-0012](docs/adr/adr-0012-audit-flow.md). Remaining build-phase
 work (not done here):
@@ -147,21 +144,18 @@ work (not done here):
 2. Implement HTTP + OAuth refresh-on-401 in `ZohoBooksARTool` (mirror
    `ZohoBooksAPTool`).
 3. Implement the FOODICS calls in `FoodicsARTool`.
-4. Implement the nine business subflows' logic (the supervisor delegates to
-   them; their internals are separate tasks). The File Intake Flow (10th
-   subflow), the Intercompany Sales Flow (11th subflow), the Cosmic Kitchen
-   Revenue Flow (12th subflow), the Foodics Processing Flow (13th subflow), the
-   Calculation Flow (14th subflow), the Invoice Generation Flow (15th subflow),
-   the Human Approval Flow (9th subflow), the Zoho Upload Flow (7th subflow),
-   and the Audit Flow (16th subflow)
-   are done; seven business subflows remain.
-5. Wire the seven business subflows in the LangFlow UI and import their real
-   flow JSONs (the seven skeletons here are still placeholders; `supervisor.json`,
-   `ar_file_intake.json`, `ar_intercompany_sales.json`,
-   `ar_kitchen_revenue.json`, `ar_foodics_processing.json`,
-   `ar_calculation.json`, `ar_invoice_generation.json`, `ar_approval.json`,
-   `ar_issue_invoice.json`, and `ar_audit.json` are wired — import the sixteen
-   subflows first, then the supervisor, per [flows/README.md](flows/README.md)).
+4. ~~Implement the nine business subflows' logic (the supervisor delegates to
+   them; their internals are separate tasks).~~ ✓ Done — all nine subflows are
+   implemented: the Zoho Upload Flow (row 1), the Human Approval Flow (row 2),
+   the File Intake Flow (row 3), the Intercompany Sales Flow (row 4), the
+   Cosmic Kitchen Revenue Flow (row 5), the Foodics Processing Flow (row 6),
+   the Calculation Flow (row 7), the Invoice Generation Flow (row 8), and the
+   Audit Flow (row 9). The seven reserved placeholder slots were retired by
+   [ADR-0013](docs/adr/adr-0013-retire-placeholder-subflows.md).
+5. ~~Wire the subflows in the LangFlow UI and import their real flow JSONs.~~
+   ✓ Done — all nine subflow JSONs and `supervisor.json` are wired; import the
+   nine subflows first, then the supervisor, per
+   [flows/README.md](flows/README.md).
 6. Provision the `ar_agent` Postgres DB and swap `InMemorySaver` →
    `langgraph-checkpoint-postgres` (durable resume — see build-phase
    integration below). The File Intake Flow's `InMemorySaver` swaps for free

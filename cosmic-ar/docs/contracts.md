@@ -131,7 +131,7 @@ values conform to the idempotency-key pattern.
   "trace_id": "ar-trace-07f3a1d2",
   "flow_id": "9b1d4e7a-3c8f-4a2b-9e6d-1f2a3b4c5d6e",
   "tenant": "cosmic-vikings-ksa",
-  "intent": "post_received_payment",
+  "intent": "issue_invoice",
   "status": "awaiting_approval",
   "matched_amount": "1500.00",
   "outstanding_balance": "3500.00",
@@ -163,8 +163,8 @@ Full example: [`../contracts/examples/workflow-state.json`](../contracts/example
 ## 2. DocumentManifest (§2)
 
 Ingest bundle of documents (invoices, receipts, credit notes, payments) fetched
-for matching/reconciliation. Produced by `ar_fetch_invoices` /
-`ar_fetch_receipts`; consumed by `ar_match_payments` / `ar_reconcile`.
+for matching/reconciliation. Produced by AR intake subflows; consumed by AR
+reconciliation subflows.
 
 - **Schema**: [`../contracts/schemas/document-manifest.schema.json`](../contracts/schemas/document-manifest.schema.json)
   · version `1.0.0` · `draft`.
@@ -218,7 +218,7 @@ Full example: [`../contracts/examples/document-manifest.json`](../contracts/exam
 ## 3. RevenueData (§2)
 
 Recognized AR revenue (Zoho invoice presentment + Foodics POS sales) for a
-period. Produced by `ar_reporting` / `ar_reconcile`.
+period. Produced by AR reconciliation/reporting subflows.
 
 - **Schema**: [`../contracts/schemas/revenue-data.schema.json`](../contracts/schemas/revenue-data.schema.json)
   · version `1.0.0` · `draft`.
@@ -267,8 +267,8 @@ Full example: [`../contracts/examples/revenue-data.json`](../contracts/examples/
 
 ## 4. CollectionData (§2)
 
-Payments received and their match status against invoices. Produced by
-`ar_match_payments` / `ar_reporting`.
+Payments received and their match status against invoices. Produced by AR
+reconciliation/reporting subflows.
 
 - **Schema**: [`../contracts/schemas/collection-data.schema.json`](../contracts/schemas/collection-data.schema.json)
   · version `1.0.0` · `draft`.
@@ -453,7 +453,7 @@ Full example: [`../contracts/examples/validation-result.json`](../contracts/exam
 ## 7. CalculationResult (§8)
 
 Output of a financial calculation (match, reconcile, aging, rounding). Produced
-by `ar_match_payments` / `ar_reconcile` / `ar_reporting`.
+by AR calculation/reconciliation subflows (e.g. `ar_calculation`).
 
 - **Schema**: [`../contracts/schemas/calculation-result.schema.json`](../contracts/schemas/calculation-result.schema.json)
   · version `1.0.0` · `draft`.
@@ -499,8 +499,8 @@ Full example: [`../contracts/examples/calculation-result.json`](../contracts/exa
 
 ## 8. InvoiceData (§2)
 
-A Zoho Books AR invoice. Read by `ar_fetch_invoices`; authored by
-`ar_issue_invoice`. Customer referenced by id only (§16).
+A Zoho Books AR invoice. Authored by `ar_issue_invoice` (and assembled as a
+draft by `ar_invoice_generation`). Customer referenced by id only (§16).
 
 - **Schema**: [`../contracts/schemas/invoice-data.schema.json`](../contracts/schemas/invoice-data.schema.json)
   · version `1.0.0` · `draft`.
@@ -763,8 +763,9 @@ Full example: [`../contracts/examples/audit-record.json`](../contracts/examples/
 
 ## 13. Notification (§2/§19)
 
-A dunning or approval notification dispatched by `ar_dunning` / `ar_approval`.
-Recipients are referenced by id only — no PII in the payload (§16).
+A dunning or approval notification dispatched by AR notification/approval
+subflows (e.g. `ar_approval`). Recipients are referenced by id only — no PII in
+the payload (§16).
 
 - **Schema**: [`../contracts/schemas/notification.schema.json`](../contracts/schemas/notification.schema.json)
   · version `1.0.0` · `draft`.
@@ -842,7 +843,7 @@ completion (§8); `status=error` requires an `error` object.
   "trace_id": "ar-trace-07f3a1d2",
   "flow_id": "9b1d4e7a-3c8f-4a2b-9e6d-1f2a3b4c5d6e",
   "tenant": "cosmic-vikings-ksa",
-  "intent": "post_received_payment",
+  "intent": "issue_invoice",
   "status": "ok",
   "code": "AR_OK",
   "totals": { "matched": "1500.00", "outstanding": "225.00", "posted": "1500.00" },
@@ -851,7 +852,7 @@ completion (§8); `status=error` requires an `error` object.
   "approvals": ["ar-approval-c2a7b1e4-6d5f-4a3b-8e2c-9f1a2b3c4d5e"],
   "audit_refs": ["f1e2d3c4-9a8b-7c6d-5e4f-3a2b1c0d9e8f"],
   "checkpoint_id": "e1b2c3d4-7a6b-5c4d-3e2f-1a0b9c8d7e6f",
-  "subflows_invoked": ["ar_fetch_invoices", "ar_match_payments", "ar_approval", "ar_post_gl"],
+  "subflows_invoked": ["ar_calculation", "ar_approval", "ar_issue_invoice", "ar_audit"],
   "contract_version": "1.0.0"
 }
 ```

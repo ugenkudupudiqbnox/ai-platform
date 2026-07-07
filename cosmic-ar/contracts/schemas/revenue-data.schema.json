@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cosmic-vikings/ar-agent/contracts/revenue-data.schema.json",
   "title": "RevenueData",
-  "description": "Recognized AR revenue (invoice presentment + Foodics POS sales) for a period. Produced by ar_reporting / ar_reconcile.",
+  "description": "Recognized AR revenue (invoice presentment + Foodics POS sales) for a period. Produced by AR reconciliation/reporting subflows.",
   "x-contract-version": "1.0.0",
   "x-status": "draft",
   "x-since": "2026-07-06",

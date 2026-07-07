@@ -1,7 +1,7 @@
 """Cosmic AR Agent supervisor component (constitution §8, architecture §5).
 
 The supervisor is the single stateful orchestrator. It owns an explicit LangGraph
-``StateGraph[AgentState]`` and drives the fifteen AR subflows, which are exposed to
+``StateGraph[AgentState]`` and drives the nine AR subflows, which are exposed to
 it as LangChain tools (one ``RunFlow`` node per subflow on the supervisor flow's
 canvas — see ``cosmic-ar/flows/supervisor.json``). Per §8 the durable,
 checkpointed state is the typed ``AgentState`` (frozen dataclass, immutable
@@ -22,7 +22,7 @@ Responsibilities → LangGraph nodes (architecture §5):
                 subflows). §8 / §2
   - classify  : deterministic intent + doc-type classification; low confidence
                 → ``AR_UNCERTAIN`` (§4 fail-safe) → respond.               §4
-  - route     : map intent → one of the fifteen subflow tools.           §5
+  - route     : map intent → one of the nine subflow tools.           §5
   - gate      : §19 tier gate; ``read-only``/``auto`` proceed, ``approval``/
                 ``dual-control`` call ``interrupt()`` to pause for a human. §19
   - invoke    : call the selected RunFlow tool inside the §10 retry/backoff
@@ -71,28 +71,19 @@ from lfx.schema import Message
 from components.ar_common.agent_state import AgentState, Approval
 
 # --------------------------------------------------------------------------- #
-#  Constants — the fifteen subflows, their tiers (architecture §4), and the
+#  Constants — the nine subflows, their tiers (architecture §4), and the
 #  deterministic intent router. Tunables belong in Global Variables (§17) at
 #  build phase; these defaults are the v1 policy.
 # --------------------------------------------------------------------------- #
 
-# The fifteen subflows: nine business subflows + ar_file_intake (the File Intake
-# Flow, the 10th — ADR-0004) + ar_intercompany_sales (the Intercompany Sales
-# Flow, the 11th — ADR-0005) + ar_kitchen_revenue (the Cosmic Kitchen Revenue
-# Flow, the 12th — ADR-0006) + ar_foodics_processing (the Foodics Processing
-# Flow, the 13th — ADR-0007) + ar_calculation (the Calculation Flow, the 14th —
-# ADR-0008) + ar_invoice_generation (the Invoice Generation Flow, the 15th —
-# ADR-0009) + ar_audit (the Audit Flow, the 16th — ADR-0012; architecture §4's
-# "Nine reusable subflows" is amended to "Sixteen" by those ADRs).
+# The nine implemented subflows (architecture §4 rows 1-9). Seven reserved
+# business-subflow slots (ar_fetch_invoices / ar_fetch_receipts /
+# ar_match_payments / ar_reconcile / ar_dunning / ar_post_gl / ar_reporting)
+# were never implemented and have been retired — see ADR-0013 (which renumbered
+# §4 from the historical sixteen back to the nine implemented flows; the older
+# ADRs retain their pre-renumber row numbering as immutable historical records).
 SUBFLOWS: tuple[str, ...] = (
-    "ar_fetch_invoices",
-    "ar_fetch_receipts",
-    "ar_match_payments",
-    "ar_reconcile",
-    "ar_dunning",
-    "ar_post_gl",
     "ar_issue_invoice",
-    "ar_reporting",
     "ar_approval",
     "ar_file_intake",
     "ar_intercompany_sales",
@@ -105,14 +96,7 @@ SUBFLOWS: tuple[str, ...] = (
 
 # §19 tiers. read-only/auto proceed unattended; approval/dual-control pause.
 TIER: dict[str, str] = {
-    "ar_fetch_invoices": "read-only",
-    "ar_fetch_receipts": "read-only",
-    "ar_match_payments": "auto",  # v1: below the auto-match ceiling (ceiling check is build-phase)
-    "ar_reconcile": "auto",
-    "ar_dunning": "auto",
-    "ar_post_gl": "approval",
     "ar_issue_invoice": "approval",
-    "ar_reporting": "read-only",
     "ar_approval": "approval",
     "ar_file_intake": "read-only",  # parses uploads → DocumentManifest; no mutation (ADR-0004)
     "ar_intercompany_sales": "approval",  # invoice production intent, but v1 is draft-only — gate dormant (ADR-0005)
@@ -125,31 +109,20 @@ TIER: dict[str, str] = {
 
 # Intent → subflow routing keywords (deterministic v1 classifier).
 INTENT_KEYWORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    # Invoice Generation MUST precede ar_fetch_invoices: the classifier uses
-    # strict `>` (first-match-wins on ties), and ar_fetch_invoices' bare
-    # "invoice" keyword (len 7 > 4 → score 1.0) would otherwise shadow every
-    # more-specific invoice intent at 1.0. Placing these multi-word 1.0-score
-    # keywords first lets "generate invoice" / "draft invoice" / "invoice pdf"
-    # / "invoice excel" / "journal entry" / "customer statement" win, while a
-    # bare "invoice" / "fetch invoice" / "list invoice" still falls through to
-    # ar_fetch_invoices below (none of this flow's keywords is the bare token
-    # "invoice"). ADR-0009. (ar_issue_invoice's "issue/create/present/new
-    # invoice" are likewise shadowed today — a pre-existing limitation left
-    # unchanged here because ar_issue_invoice is a FINANCIAL_INTENTS flow and
-    # retargeting its routing is out of scope for the invoice-generation task.)
+    # Invoice Generation precedes ar_issue_invoice: the classifier uses strict
+    # `>` (first-match-wins on ties), and ar_issue_invoice's multi-word 1.0-score
+    # "create/issue/present/new invoice" keywords would otherwise tie with this
+    # flow's multi-word 1.0-score "generate/draft/build invoice" keywords.
+    # Placing invoice-generation first lets "generate invoice" / "draft invoice"
+    # / "invoice pdf" / "invoice excel" / "journal entry" / "customer statement"
+    # win, while "issue/create/present/new invoice" still routes to ar_issue_invoice.
+    # ADR-0009.
     ("ar_invoice_generation", ("generate invoice", "invoice generation",
                                "draft invoice", "build invoice",
                                "compose invoice", "invoice pdf",
                                "invoice excel", "journal entry",
                                "customer statement")),
-    ("ar_fetch_invoices", ("invoice", "fetch invoice", "list invoice", "outstanding invoice")),
-    ("ar_fetch_receipts", ("receipt", "pos", "foodics", "fetch receipt")),
-    ("ar_match_payments", ("match", "apply payment", "payment matching")),
-    ("ar_reconcile", ("reconcile", "reconciliation", "balance")),
-    ("ar_dunning", ("dunning", "overdue", "remind", "reminder")),
-    ("ar_post_gl", ("post", "gl", "general ledger", "payment received", "post payment")),
     ("ar_issue_invoice", ("issue invoice", "create invoice", "present invoice", "new invoice")),
-    ("ar_reporting", ("report", "aging", "dashboard", "ar aging", "summary report")),
     ("ar_approval", ("approve", "approval")),  # also the resume path
     # File Intake: an explicit "intake/upload/parse" intent (optionally + "file")
     # clears MIN_CONFIDENCE and routes to the File Intake Flow. A bare file with
@@ -198,7 +171,6 @@ INTENT_KEYWORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
     # time, errors, warnings) from a caller-assembled AuditRequest wrapper,
     # synthesizes an immutable §13 audit log + an ExecutionSummary, and returns
     # the Audit JSON + WorkflowState. Read-only emission — no §1 gate (ADR-0012).
-    # "summary report" stays with ar_reporting (no collision).
     ("ar_audit", ("audit", "audit log", "execution summary", "run summary",
                    "run history", "audit trail")),
 )
@@ -218,7 +190,7 @@ APPROVAL_REF_RE = re.compile(
 
 # Intent values that perform a financial mutation → exhausted retry surfaces as
 # pending_approval (§10), never a silent failure.
-FINANCIAL_INTENTS: frozenset[str] = frozenset({"ar_post_gl", "ar_issue_invoice"})
+FINANCIAL_INTENTS: frozenset[str] = frozenset({"ar_issue_invoice"})
 
 
 # --------------------------------------------------------------------------- #
@@ -269,7 +241,7 @@ def _as_list(value: Any) -> list[Any]:
 def _tools_by_name(tools: list[Any]) -> dict[str, Any]:
     """Index the wired RunFlow tools by their LangChain tool ``name``.
 
-    A RunFlow tool's name is the target flow name (e.g. ``ar_fetch_invoices``).
+    A RunFlow tool's name is the target flow name (e.g. ``ar_calculation``).
     Tools that don't expose a usable name fall back to a substring match of the
     tool description against the known subflow ids; an empty dict means the
     canvas isn't wired yet.
@@ -318,7 +290,7 @@ def classify_intent(user_input: str, files: list[Any]) -> tuple[str, float]:
     # File-only signal: an uploaded file with no recognisable intent routes to
     # the File Intake Flow so the upload is parsed into a DocumentManifest (low
     # confidence → AR_UNCERTAIN unless the user adds an "intake/upload" keyword,
-    # preserving §4). Rerouted from ar_fetch_invoices per ADR-0004.
+    # preserving §4). Routes to ar_file_intake per ADR-0004.
     if not best_intent and files:
         return "ar_file_intake", 0.4
     return best_intent, best_score
@@ -722,7 +694,7 @@ class SupervisorAgentComponent(Component):
         HandleInput(
             name="tools",
             display_name="Subflow Tools",
-            info="The fifteen RunFlow subflow-as-tool outputs wired in from the canvas.",
+            info="The nine RunFlow subflow-as-tool outputs wired in from the canvas.",
             input_types=["Tool"],
             is_list=True,
             required=False,

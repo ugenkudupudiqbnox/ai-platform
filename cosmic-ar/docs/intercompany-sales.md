@@ -1,6 +1,6 @@
 # Intercompany Sales Flow (`ar_intercompany_sales`)
 
-The **Intercompany Sales Flow** is the 11th AR subflow (architecture §4 row 11;
+The **Intercompany Sales Flow** is the 4th AR subflow (architecture §4 row 4;
 [ADR-0005](adr/adr-0005-intercompany-sales-flow.md)). Cosmic sells to
 intercompany customer-restaurants inside a Marriott hotel (**HYP** and
 **Upyard**) and receives those sales as **KOT (Kitchen Order Ticket) Excel**
@@ -171,12 +171,12 @@ in sync (hand-rolled stdlib, no `jsonschema` dep).
 1. **Issuance upgrade** — add the §19 gate + idempotency key +
    checkpoint-before-POST + audit-with-`approval_ref`; add
    `ar_intercompany_sales` to `FINANCIAL_INTENTS` (mirrors `ar_issue_invoice`,
-   architecture §4 row 7). This is the point at which the tier's gate goes live.
+   architecture §4 row 1). This is the point at which the tier's gate goes live.
 2. **Rebuild the `langflow` image** so `openpyxl` is available for `.xlsx` KOTs
    (`docker compose build langflow langflow-worker`) — already required by the
    File Intake Flow (ADR-0004 §3); CSV works without a rebuild.
-3. **Import the sixteen subflows first** (incl. `ar_intercompany_sales.json`),
-   then `supervisor.json`; open the supervisor flow so the 11th `RunFlow`
+3. **Import the nine subflows first** (incl. `ar_intercompany_sales.json`),
+   then `supervisor.json`; open the supervisor flow so the 4th `RunFlow`
    resolves `flow_id_selected`.
 4. **Wire `ValidationEngineComponent`** for `InvoiceData`/`RevenueData`/
    `WorkflowState` (replace the inline validators).

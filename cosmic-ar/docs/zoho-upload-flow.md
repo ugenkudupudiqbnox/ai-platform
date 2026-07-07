@@ -1,6 +1,6 @@
 # Zoho Upload Flow (`ar_issue_invoice`)
 
-The **Zoho Upload Flow** is the 7th AR subflow (architecture §4 row 7;
+The **Zoho Upload Flow** is the 1st AR subflow (architecture §4 row 1;
 [ADR-0011](adr/adr-0011-zoho-upload-flow.md)). It takes a
 **validated-JSON `ZohoUploadRequest`** wrapper — an `approval_ref` (§1) plus a
 batch of `InvoiceData` (the Invoice JSON from `ar_invoice_generation`) —
@@ -295,7 +295,7 @@ in sync (hand-rolled stdlib, no `jsonschema` dep).
 6. **Adapter upload-result rendering** — surface `data.batch_summary` +
    per-invoice `ZohoUploadResult` (success/duplicate/rolled-back) readably in
    LibreChat.
-7. **Import the sixteen subflows first** (incl. the now-wired
+7. **Import the nine subflows first** (incl. the now-wired
    `ar_issue_invoice.json`), then `supervisor.json`; open the supervisor flow so
    the `RunFlow(ar_issue_invoice)` resolves `flow_id_selected`;
    `docker compose restart langflow`; `docker exec langflow python -m lfx

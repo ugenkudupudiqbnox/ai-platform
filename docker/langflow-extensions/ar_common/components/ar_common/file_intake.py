@@ -1,6 +1,6 @@
-"""Cosmic AR Agent — File Intake Flow component (constitution §8, architecture §4 row 10).
+"""Cosmic AR Agent — File Intake Flow component (constitution §8, architecture §4 row 3).
 
-The File Intake Flow is the 10th AR subflow. It accepts an uploaded
+The File Intake Flow is the 3rd AR subflow. It accepts an uploaded
 Excel/CSV/PDF, identifies its report type, extracts metadata, validates it,
 builds a ``DocumentManifest``, updates workflow state, and returns structured
 JSON — with logging (§12), retries (§10), and checkpoints (§11). It is the
@@ -223,7 +223,7 @@ def _envelope(status: str, code: str, data: Optional[dict] = None,
 
 
 def detect_type(filename: str) -> str:
-    """Identify the report type by file extension (architecture §4 row 10).
+    """Identify the report type by file extension (architecture §4 row 3).
 
     Returns ``"excel"``/``"csv"``/``"pdf"``/``"unknown"``. Unknown extensions fail
     safe (§4) at the ``detect_type`` node → ``AR_UNCERTAIN``.
@@ -870,7 +870,7 @@ class FileIntakeFlowComponent(Component):
     description = (
         "Accepts an uploaded Excel/CSV/PDF, identifies its report type, extracts "
         "metadata, validates it, and builds a DocumentManifest — with logging, "
-        "retries, and checkpoints (constitution §4/§8/§9/§10/§11/§12). The 10th "
+        "retries, and checkpoints (constitution §4/§8/§9/§10/§11/§12). The 3rd "
         "AR subflow; called directly or routed to by the supervisor."
     )
     icon = "FileInput"

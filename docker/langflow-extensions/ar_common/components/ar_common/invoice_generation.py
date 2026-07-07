@@ -1,6 +1,6 @@
-"""Cosmic AR Agent — Invoice Generation Flow component (constitution §8, architecture §4 row 15).
+"""Cosmic AR Agent — Invoice Generation Flow component (constitution §8, architecture §4 row 8).
 
-The Invoice Generation Flow is the 15th AR subflow (ADR-0009). It takes a
+The Invoice Generation Flow is the 8th AR subflow (ADR-0009). It takes a
 **validated-JSON invoice request** — ``{customer_ref, line_items, totals, dates,
 currency, ...}`` — assembles a draft ``InvoiceData`` (§15 reuse of the existing
 contract), and generates **eight invoice artifacts** as structured JSON in the
@@ -1087,7 +1087,7 @@ class InvoiceGenerationFlowComponent(Component):
         "Upload File, Invoice Metadata, and a WorkflowState snapshot — as "
         "structured JSON in the §14 envelope, with logging and checkpoints after "
         "every generation step (constitution §1/§4/§8/§9/§11/§12/§14/§15/§16/§17/"
-        "§19). The 15th AR subflow; v1 is read-only generate + draft (no posting). "
+        "§19). The 8th AR subflow; v1 is read-only generate + draft (no posting). "
         "PDF/Excel binaries are build-phase; no §55 waiver. See ADR-0009."
     )
     icon = "FileText"

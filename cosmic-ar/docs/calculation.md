@@ -1,6 +1,6 @@
 # Calculation Flow (`ar_calculation`)
 
-The **Calculation Flow** is the 14th AR subflow (architecture §4 row 14;
+The **Calculation Flow** is the 7th AR subflow (architecture §4 row 7;
 [ADR-0008](adr/adr-0008-calculation-flow.md)). It takes a **Validated JSON**
 payload (aggregated facts + parameters — the output of the planned P10
 Validation Flow, or any caller that produces the payload contract) and computes
@@ -244,8 +244,8 @@ done here):
    the posting flow to `FINANCIAL_INTENTS` (this flow stays `read-only`).
 5. **Statutory filing** — a separate VAT/Zakat returns flow (still §55
    out-of-scope here).
-6. **Import the sixteen subflows first** (incl. `ar_calculation.json`), then
-   `supervisor.json`; open the supervisor flow so the 14th `RunFlow` resolves
+6. **Import the nine subflows first** (incl. `ar_calculation.json`), then
+   `supervisor.json`; open the supervisor flow so the 7th `RunFlow` resolves
    `flow_id_selected`; `docker compose restart langflow`.
 7. **Swap `InMemorySaver` → Postgres saver** (shared with the supervisor —
    ADR-0003 build-phase; this flow follows for free).

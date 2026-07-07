@@ -128,7 +128,7 @@ class CosmicARTool(Component):
 
 | Artifact | Convention | Example |
 |----------|-----------|---------|
-| Flow ID (display) | `ar_<verb>_<object>` | `ar_match_payments`, `ar_post_gl` |
+| Flow ID (display) | `ar_<verb>_<object>` | `ar_file_intake`, `ar_calculation` |
 | Custom component class | `PascalCase`, suffix `…Tool` or `…Component` | `ZohoBooksAPTool`, `ReconcileComponent` |
 | Bundle directory | lowercase `snake_case` (enforced) | `ap_tools`, `ar_tools` |
 | Extension `id` in `extension.json` | kebab-case | `ap-tools`, `ar-tools` |

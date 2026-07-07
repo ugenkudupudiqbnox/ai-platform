@@ -23,7 +23,7 @@ See constitution §16/§17/§18.
 | `AR_AGENT_DB_NAME` | Checkpoint database name | `ar_agent` | Build-phase (needs `docker-compose.yml` postgres env wiring) |
 | `AR_AGENT_DB_USER` | Least-privilege role for the checkpoint DB | `ar_agent` | Build-phase |
 | `AR_AGENT_DB_PASSWORD` | Role password | `__GENERATED__` — **extend `scripts/gen-secrets.sh` at build phase** | Build-phase |
-| `AR_APPROVAL_AUTO_MATCH_CEILING` | Amount at/above which `ar_match_payments` escalates from `auto` to `approval` (§19) | (unset = no auto-match; tune at build phase) | Build-phase |
+| `AR_APPROVAL_AUTO_MATCH_CEILING` | Amount at/above which an auto-match action escalates from `auto` to `approval` (§19) — a build-phase payment-matching knob (no matching subflow is implemented in v1) | (unset = no auto-match; tune at build phase) | Build-phase |
 | `AR_APPROVAL_DUAL_CONTROL_CEILING` | Amount at/above which refunds/write-offs require `dual-control` (§19) | (unset; tune at build phase) | Build-phase |
 
 ## LangFlow Secret Global Variables (managed in the LangFlow UI — **not** `.env`)

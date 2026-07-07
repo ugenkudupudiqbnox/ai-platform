@@ -1,8 +1,8 @@
 """Cosmic AR Agent — Audit Flow component (constitution §8/§9/§11/§13/§14/§15/§16,
-architecture §4 row 16).
+architecture §4 row 9).
 
-The Audit Flow is the **16th AR subflow** (ADR-0012) — it implements
-``ar_audit`` (architecture §4 row 16, added by ADR-0012 which amends §4's
+The Audit Flow is the **9th AR subflow** (ADR-0012) — it implements
+``ar_audit`` (architecture §4 row 9, added by ADR-0012 which amends §4's
 "Fifteen reusable subflows" to "Sixteen"). It is the run-level **audit
 aggregator**: it collects a run's execution history, input files, validation
 reports, calculation results, invoices, approvals, Zoho upload results,
@@ -883,7 +883,7 @@ class AuditFlowComponent(Component):
     name = "AuditFlowComponent"
     display_name = "Cosmic AR Audit Flow"
     description = (
-        "The Audit Flow for the Cosmic AR Agent (ar_audit, the 16th subflow): "
+        "The Audit Flow for the Cosmic AR Agent (ar_audit, the 9th subflow): "
         "collects a run's execution history, input files, validation reports, "
         "calculation results, invoices, approvals, Zoho upload results, "
         "execution time, errors, and warnings (a validated-JSON AuditRequest "

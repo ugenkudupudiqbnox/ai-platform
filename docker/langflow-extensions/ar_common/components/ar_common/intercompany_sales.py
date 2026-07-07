@@ -1,6 +1,6 @@
-"""Cosmic AR Agent — Intercompany Sales Flow component (constitution §8, architecture §4 row 11).
+"""Cosmic AR Agent — Intercompany Sales Flow component (constitution §8, architecture §4 row 4).
 
-The Intercompany Sales Flow is the 11th AR subflow. Cosmic sells to intercompany
+The Intercompany Sales Flow is the 4th AR subflow. Cosmic sells to intercompany
 customer-restaurants inside a Marriott hotel (HYP, Upyard) and receives those
 sales as **KOT (Kitchen Order Ticket) Excel** sheets — one row per ordered menu
 item carrying its quantity and the intercompany **agreed rate** (the transfer
@@ -19,7 +19,7 @@ intent is invoice production), but the §19 gate is **dormant in v1**: there is 
 ``ApprovalGate``, no idempotency key, no ``pending_approval``. Upgrading to actual
 issuance (posting the intercompany invoice in Zoho) is a documented build-phase
 step that adds the gate + idempotency + checkpoint-before-POST +
-audit-with-``approval_ref`` (mirrors ``ar_issue_invoice``, architecture §4 row 7).
+audit-with-``approval_ref`` (mirrors ``ar_issue_invoice``, architecture §4 row 1).
 See ADR-0005.
 
 Responsibilities → LangGraph nodes:
@@ -1109,7 +1109,7 @@ class IntercompanySalesFlowComponent(Component):
         "menu/qty/agreed-rate from the sheet, calculates intercompany revenue, "
         "and generates a draft InvoiceData JSON per buyer + Validation Report + "
         "Exception Report — with logging, retries, and checkpoints (constitution "
-        "§1/§4/§8/§9/§10/§11/§12/§15/§16). The 11th AR subflow; v1 is compute + "
+        "§1/§4/§8/§9/§10/§11/§12/§15/§16). The 4th AR subflow; v1 is compute + "
         "draft only (no posting). See ADR-0005."
     )
     icon = "ReceiptText"

@@ -1,6 +1,6 @@
 # Audit Flow (`ar_audit`)
 
-The **Audit Flow** is the 16th AR subflow (architecture §4 row 16;
+The **Audit Flow** is the 9th AR subflow (architecture §4 row 9;
 [ADR-0012](adr/adr-0012-audit-flow.md)). It collects a run's **execution
 history, input files, validation reports, calculation results, invoices,
 approvals, Zoho upload results, execution time, errors, and warnings** from a
@@ -277,7 +277,7 @@ truth and the self-test keeps the validator in sync (hand-rolled stdlib, no
 4. **Durable Postgres checkpointer** — swap `InMemorySaver` for
    `langgraph-checkpoint-postgres` (shared with the supervisor — ADR-0003
    build-phase; this flow follows for free).
-5. **Import the sixteen subflows first** (incl. `ar_audit.json`), then
+5. **Import the nine subflows first** (incl. `ar_audit.json`), then
    `supervisor.json`; open the supervisor flow so `RunFlow(ar_audit)` resolves
    `flow_id_selected`; `docker compose restart langflow`; `docker exec langflow
    python -m lfx extension validate /app/extensions/ar_common`.

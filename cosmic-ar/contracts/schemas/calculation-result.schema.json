@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cosmic-vikings/ar-agent/contracts/calculation-result.schema.json",
   "title": "CalculationResult",
-  "description": "Output of a financial calculation (match, reconcile, aging, rounding). Produced by ar_match_payments / ar_reconcile / ar_reporting.",
+  "description": "Output of a financial calculation (match, reconcile, aging, rounding). Produced by AR calculation/reconciliation subflows (e.g. ar_calculation).",
   "x-contract-version": "1.0.0",
   "x-status": "draft",
   "x-since": "2026-07-06",

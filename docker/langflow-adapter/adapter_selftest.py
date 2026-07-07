@@ -134,8 +134,8 @@ eq(len(files), 1, "attachment-only message: one file")
 #  parse_envelope
 # --------------------------------------------------------------------------- #
 print("[3] parse_envelope")
-env = {"status": "pending_approval", "code": "AR_APPROVAL_REQUIRED", "approval_ref": "ar-approval-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", "data": {"action": "ar_post_gl"}}
-eq(adapter.parse_envelope('{"status":"pending_approval","code":"AR_APPROVAL_REQUIRED","approval_ref":"ar-approval-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee","data":{"action":"ar_post_gl"}}'), env, "valid envelope dict")
+env = {"status": "pending_approval", "code": "AR_APPROVAL_REQUIRED", "approval_ref": "ar-approval-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", "data": {"action": "ar_issue_invoice"}}
+eq(adapter.parse_envelope('{"status":"pending_approval","code":"AR_APPROVAL_REQUIRED","approval_ref":"ar-approval-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee","data":{"action":"ar_issue_invoice"}}'), env, "valid envelope dict")
 eq(adapter.parse_envelope("plain human answer"), None, "plain text → None")
 eq(adapter.parse_envelope("[1,2,3]"), None, "json array → None")
 eq(adapter.parse_envelope("42"), None, "json number → None")
@@ -164,13 +164,13 @@ print("[5] render_approval")
 prompt, meta = adapter.render_approval(env)
 truthy(isinstance(prompt, str) and ref in prompt, "pending_approval → prompt mentions the ref")
 truthy(prompt and "approve" in prompt and "reject" in prompt, "prompt offers approve/reject")
-eq(meta, {"status": "pending_approval", "approval_ref": ref, "action": "ar_post_gl", "checkpoint_id": ""}, "x_cosmic_approval metadata shape")
+eq(meta, {"status": "pending_approval", "approval_ref": ref, "action": "ar_issue_invoice", "checkpoint_id": ""}, "x_cosmic_approval metadata shape")
 # Non-pending envelope → (None, None)
 eq(adapter.render_approval({"status": "ok", "code": "AR_OK"}), (None, None), "ok envelope → (None, None)")
 eq(adapter.render_approval(None), (None, None), "None → (None, None)")
 # Missing action falls back to intent
-p2, m2 = adapter.render_approval({"status": "pending_approval", "approval_ref": ref, "intent": "ar_dunning"})
-eq(m2["action"], "ar_dunning", "missing data.action falls back to intent")
+p2, m2 = adapter.render_approval({"status": "pending_approval", "approval_ref": ref, "intent": "ar_audit"})
+eq(m2["action"], "ar_audit", "missing data.action falls back to intent")
 # checkpoint_id from top-level
 p3, m3 = adapter.render_approval({"status": "pending_approval", "approval_ref": ref, "checkpoint_id": "ckpt-123"})
 eq(m3["checkpoint_id"], "ckpt-123", "checkpoint_id read from top-level")

@@ -1,6 +1,6 @@
 # Invoice Generation Flow (`ar_invoice_generation`)
 
-The **Invoice Generation Flow** is the 15th AR subflow (architecture §4 row 15;
+The **Invoice Generation Flow** is the 8th AR subflow (architecture §4 row 8;
 [ADR-0009](adr/adr-0009-invoice-generation-flow.md)). It takes a
 **validated-JSON invoice request** (`{customer_ref, line_items, totals,
 issue_date, currency, …}`) — produced by a caller (the planned P10 Validation
@@ -19,7 +19,7 @@ does **not** post, so no money moves and no ledger entry posts this turn (§1
 north star preserved). The flow is registered at tier `read-only`, the §19 gate
 is **dormant in v1**: there is no `ApprovalGate`, no idempotency key, no
 `pending_approval`, and it is **not** in `FINANCIAL_INTENTS` (mirrors the
-Calculation Flow, ADR-0008). It is distinct from `ar_issue_invoice` (#7,
+Calculation Flow, ADR-0008). It is distinct from `ar_issue_invoice` (#1,
 `approval` tier, in `FINANCIAL_INTENTS`, keywords "issue/create/present/new
 invoice"), which **posts** an invoice to Zoho; this flow only **generates draft
 artifacts for review** — issuance is `ar_issue_invoice`'s job.
@@ -152,8 +152,8 @@ The draft JE is balanced by construction:
 
 Since `total = subtotal + tax - discounts`, the debit total (`total + discounts`)
 equals the credit total (`subtotal + tax`); `total_debit == total_credit` is
-asserted. `status="draft"` (no POST — §1). Posting this JE to the GL is
-`ar_post_gl` #6's job (with the §19 gate).
+asserted. `status="draft"` (no POST — §1). Posting this JE to the GL is a
+build-phase financial step (with the §19 gate), not part of this read-only flow.
 
 ## The Customer Statement design (v1)
 
@@ -242,13 +242,13 @@ done here):
    history (v1 opens at `"0.00"`).
 4. **Wire `ValidationEngineComponent`** for `InvoiceData`/`WorkflowState`
    (replace the inline validators).
-5. **Posting upgrade** — issuance is `ar_issue_invoice` #7's job (it posts at
+5. **Posting upgrade** — issuance is `ar_issue_invoice` #1's job (it posts at
    tier `approval`); this flow stays `read-only` and feeds it the draft
    `InvoiceData`/`zoho_upload`.
 6. **Layout Global Variable** — move the `layout` spec from a flow input to a
    plain-JSON LangFlow Global Variable (§17 — ADR-0009 §12).
-7. **Import the sixteen subflows first** (incl. `ar_invoice_generation.json`),
-   then `supervisor.json`; open the supervisor flow so the 15th `RunFlow`
+7. **Import the nine subflows first** (incl. `ar_invoice_generation.json`),
+   then `supervisor.json`; open the supervisor flow so the 8th `RunFlow`
    resolves `flow_id_selected`; `docker compose restart langflow`.
 8. **Swap `InMemorySaver` → Postgres saver** (shared with the supervisor —
    ADR-0003 build-phase; this flow follows for free).

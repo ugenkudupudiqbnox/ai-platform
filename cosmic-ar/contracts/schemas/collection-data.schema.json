@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cosmic-vikings/ar-agent/contracts/collection-data.schema.json",
   "title": "CollectionData",
-  "description": "Payments received and their match status against invoices. Produced by ar_match_payments / ar_reporting.",
+  "description": "Payments received and their match status against invoices. Produced by AR reconciliation/reporting subflows.",
   "x-contract-version": "1.0.0",
   "x-status": "draft",
   "x-since": "2026-07-06",

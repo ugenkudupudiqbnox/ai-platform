@@ -1,6 +1,6 @@
-"""Cosmic AR Agent — Calculation Flow component (constitution §8, architecture §4 row 14).
+"""Cosmic AR Agent — Calculation Flow component (constitution §8, architecture §4 row 7).
 
-The Calculation Flow is the 14th AR subflow (ADR-0008). It takes a **Validated
+The Calculation Flow is the 7th AR subflow (ADR-0008). It takes a **Validated
 JSON** payload (the intended output of the P10 Validation Flow — not built here)
 — an aggregated ``{trace_id, tenant, period, currency, facts, parameters}``
 object — and computes the nine AR figures: **Revenue, Discount, VAT,
@@ -803,7 +803,7 @@ class CalculationFlowComponent(Component):
         "Rule Engine (no hardcoded formulas), then emits a CalculationResult + "
         "Validation/Exception reports + a WorkflowState snapshot — with logging, "
         "and checkpoints after every calculation (constitution §1/§4/§8/§9/§10/"
-        "§11/§12/§14/§15/§16/§17/§19). The 14th AR subflow; v1 is read-only "
+        "§11/§12/§14/§15/§16/§17/§19). The 7th AR subflow; v1 is read-only "
         "compute + report (no posting). §55 waiver — figures only, not statutory "
         "filing. See ADR-0008."
     )

@@ -1,6 +1,6 @@
 # File Intake Flow (`ar_file_intake`)
 
-The **File Intake Flow** is the 10th AR subflow (architecture §4 row 10;
+The **File Intake Flow** is the 3rd AR subflow (architecture §4 row 3;
 [ADR-0004](adr/adr-0004-file-intake-flow.md)). It accepts an uploaded
 Excel/CSV/PDF, identifies its report type, extracts metadata, validates it,
 builds a `DocumentManifest`, updates workflow state, and returns structured
@@ -151,13 +151,13 @@ for the full rationale. Operational summary:
 1. **Rebuild the `langflow` image** so `openpyxl`/`pdfplumber` are available
    (`docker compose build langflow langflow-worker`) — CSV works without a
    rebuild; Excel/PDF do not.
-2. **Import the sixteen subflows first** (incl. `ar_file_intake.json`,
+2. **Import the nine subflows first** (incl. `ar_file_intake.json`,
    `ar_intercompany_sales.json`, `ar_kitchen_revenue.json`,
    `ar_foodics_processing.json`, `ar_calculation.json`,
    `ar_invoice_generation.json`, `ar_approval.json`, `ar_issue_invoice.json`, and
    `ar_audit.json`),
    then `supervisor.json`; open the supervisor flow so each `RunFlow` node (incl.
-   the 7th/9th/10th/11th/12th/13th/14th/15th/16th) resolves `flow_id_selected`.
+   the 1st/2nd/3rd/4th/5th/6th/7th/8th/9th) resolves `flow_id_selected`.
 3. Confirm `jsonschema` availability (or keep hand-rolled) when other contracts
    are implemented.
 4. Swap `InMemorySaver` → Postgres saver for the supervisor's approval round-trip

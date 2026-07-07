@@ -1,6 +1,6 @@
 # Foodics Processing Flow (`ar_foodics_processing`)
 
-The **Foodics Processing Flow** is the 13th AR subflow (architecture §4 row 13;
+The **Foodics Processing Flow** is the 6th AR subflow (architecture §4 row 6;
 [ADR-0007](adr/adr-0007-foodics-processing-flow.md)). Cosmic receives Foodics
 **Order**, **Order Items**, and **Order Payments** data — either as three
 uploaded export files (Excel/CSV) or via the Foodics API — and must turn it into
@@ -247,8 +247,8 @@ done here):
 4. **`.xlsx` workbook + pivot** — add an openpyxl writer + pivot construction
    node that materializes `data.consolidated`/`pivot`/`sheet3` into an `.xlsx`
    (no Dockerfile change — openpyxl is installed).
-5. **Import the sixteen subflows first** (incl. `ar_foodics_processing.json`),
-   then `supervisor.json`; open the supervisor flow so the 13th `RunFlow`
+5. **Import the nine subflows first** (incl. `ar_foodics_processing.json`),
+   then `supervisor.json`; open the supervisor flow so the 6th `RunFlow`
    resolves `flow_id_selected`; `docker compose restart langflow`.
 6. **Wire `ValidationEngineComponent`** for `InvoiceData` + the flow-specific
    datasets (replace the inline validators).

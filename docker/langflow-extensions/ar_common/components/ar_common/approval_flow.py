@@ -1,7 +1,7 @@
 """Cosmic AR Agent — Human Approval Flow component (constitution §8/§19,
-architecture §4 row 9).
+architecture §4 row 2).
 
-The Human Approval Flow is the 9th AR subflow (ADR-0010). It is the
+The Human Approval Flow is the 2nd AR subflow (ADR-0010). It is the
 **presentational approval surface** for the AR Agent: an operator/upstream
 caller submits a **validated-JSON review packet** (the Revenue/Expense/Invoice
 summaries + the approval proposal), the flow **pauses** (constitution §19
@@ -720,7 +720,7 @@ class HumanApprovalFlowComponent(Component):
         "approval proposal), PAUSES via §19 interrupt, PRESENTS the packet, "
         "CAPTURES an Approve / Reject / Request-Changes decision on resume, "
         "UPDATES WorkflowState, and LOGS an audit record (§13) — then returns "
-        "the ApprovalResult in the §14 envelope. The 9th AR subflow; standalone "
+        "the ApprovalResult in the §14 envelope. The 2nd AR subflow; standalone "
         "direct-invocation surface (no supervisor change); v1 uses InMemorySaver "
         "(non-durable). Constitution §1/§8/§9/§11/§13/§14/§16/§19. See ADR-0010."
     )

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cosmic-vikings/ar-agent/contracts/document-manifest.schema.json",
   "title": "DocumentManifest",
-  "description": "Ingest bundle of documents (invoices, receipts, credit notes, payments) fetched for matching/reconciliation. Produced by ar_fetch_invoices / ar_fetch_receipts; consumed by ar_match_payments / ar_reconcile.",
+  "description": "Ingest bundle of documents (invoices, receipts, credit notes, payments) fetched for matching/reconciliation. Produced by AR intake subflows; consumed by AR reconciliation subflows.",
   "x-contract-version": "1.0.0",
   "x-status": "draft",
   "x-since": "2026-07-06",

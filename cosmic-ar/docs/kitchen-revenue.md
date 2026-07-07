@@ -1,6 +1,6 @@
 # Cosmic Kitchen Revenue Flow (`ar_kitchen_revenue`)
 
-The **Cosmic Kitchen Revenue Flow** is the 12th AR subflow (architecture §4 row
+The **Cosmic Kitchen Revenue Flow** is the 5th AR subflow (architecture §4 row
 12; [ADR-0006](adr/adr-0006-kitchen-revenue-flow.md)). Cosmic Kitchen operates
 inside a Marriott hotel and produces four daily Excel/CSV sheets — **Menu Sales
 Analysis**, **Daily Sales**, **Detailed Check Payment**, and **Marriott
@@ -23,7 +23,7 @@ responsibilities map to LangGraph nodes inside one `lfx` component,
 
 **v1 is read-only compute + report**: it produces the figures for review; it
 does **not** post anything, so no money moves and no ledger entry posts this
-turn (§1 north star preserved, same tier as `ar_reporting`). The flow is
+turn (§1 north star preserved, like the other read-only report flows). The flow is
 registered at tier `read-only` — there is no §19 gate, no idempotency key, no
 `pending_approval`. `Net Receivable` / `Net Payable` are **reported** figures,
 not ledger mutations. "Expenses" is a reported total from the Marriott Backup
@@ -138,8 +138,8 @@ v1 is **read-only compute + report** — no §19 gate, no idempotency key, no
 2. **Rebuild the `langflow` image** so `openpyxl` is available for `.xlsx`
    sheets (`docker compose build langflow langflow-worker`) — already required
    by the File Intake Flow (ADR-0004 §3); CSV works without a rebuild.
-3. **Import the sixteen subflows first** (incl. `ar_kitchen_revenue.json`),
-   then `supervisor.json`; open the supervisor flow so the 12th `RunFlow`
+3. **Import the nine subflows first** (incl. `ar_kitchen_revenue.json`),
+   then `supervisor.json`; open the supervisor flow so the 5th `RunFlow`
    resolves `flow_id_selected`.
 4. **Wire `ValidationEngineComponent`** for `RevenueData`/`CollectionData`/
    `CalculationResult`/`WorkflowState` (replace the inline validators).

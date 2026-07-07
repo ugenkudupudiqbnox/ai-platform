@@ -1,6 +1,6 @@
-"""Cosmic AR Agent — Cosmic Kitchen Revenue Flow component (constitution §8, architecture §4 row 12).
+"""Cosmic AR Agent — Cosmic Kitchen Revenue Flow component (constitution §8, architecture §4 row 5).
 
-The Cosmic Kitchen Revenue Flow is the 12th AR subflow. Cosmic Kitchen operates
+The Cosmic Kitchen Revenue Flow is the 5th AR subflow. Cosmic Kitchen operates
 inside a Marriott hotel and produces four daily Excel/CSV sheets — **Menu Sales
 Analysis**, **Daily Sales**, **Detailed Check Payment**, and **Marriott Backup**
 — that together describe a period's revenue (split by meal period: Breakfast,
@@ -20,7 +20,7 @@ Intercompany Sales Flow.
 
 v1 is **read-only compute + report**: it produces the figures for review; it
 does **not** post anything, so no money moves and no ledger entry posts this
-turn (§1 north star preserved, same tier as ``ar_reporting``). The flow is
+turn (§1 north star preserved, like the other read-only report flows). The flow is
 registered at tier ``read-only`` — there is no §19 gate, no idempotency key, no
 ``pending_approval``. ``Net Receivable`` / ``Net Payable`` are **reported**
 figures, not ledger mutations. "Expenses" is a reported total from the Marriott
@@ -1426,7 +1426,7 @@ class KitchenRevenueFlowComponent(Component):
         "Receivable, and Net Payable, and generates a Revenue JSON + Validation "
         "Report + Exception Report — with logging, retries, and checkpoints after "
         "every calculation (constitution §1/§4/§8/§9/§10/§11/§12/§15/§16/§20). The "
-        "12th AR subflow; v1 is read-only compute + report (no posting). See "
+        "5th AR subflow; v1 is read-only compute + report (no posting). See "
         "ADR-0006."
     )
     icon = "Calculator"

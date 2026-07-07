@@ -1,6 +1,6 @@
-"""Cosmic AR Agent — Foodics Processing Flow component (constitution §8, architecture §4 row 13).
+"""Cosmic AR Agent — Foodics Processing Flow component (constitution §8, architecture §4 row 6).
 
-The Foodics Processing Flow is the 13th AR subflow. Cosmic receives Foodics
+The Foodics Processing Flow is the 6th AR subflow. Cosmic receives Foodics
 **Order**, **Order Items**, and **Order Payments** data — either as three
 uploaded export files (Excel/CSV) or via the Foodics API — and must turn it
 into a **consolidated dataset** (a per-order join of items + payments), a
@@ -1881,7 +1881,7 @@ class FoodicsProcessingFlowComponent(Component):
         "format + a draft InvoiceData per order + Validation/Exception reports, "
         "and returns structured JSON — with logging, retries, and checkpoints "
         "after every calculation (constitution §1/§4/§8/§9/§10/§11/§12/§15/§16/"
-        "§17/§19). The 13th AR subflow; v1 is compute + draft only (no posting; "
+        "§17/§19). The 6th AR subflow; v1 is compute + draft only (no posting; "
         "API path is build-phase). See ADR-0007."
     )
     icon = "ReceiptLong"

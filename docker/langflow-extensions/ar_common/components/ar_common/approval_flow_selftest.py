@@ -273,7 +273,7 @@ def falsy(value, name):
 
 GOOD_PACKET = {
     "trace_id": "trace-1", "tenant": "cosmic-vikings", "currency": "SAR",
-    "action": "ar_post_gl", "amount": "1250.00", "tier": "approval",
+    "action": "ar_issue_invoice", "amount": "1250.00", "tier": "approval",
     "requested_by": "keycloak-sub-abc",
     "proposal": {
         "operation": "post", "target": "GL:4000",
@@ -331,7 +331,7 @@ eq(c._to_2dp("12.345"), "12.35", "non-negative half-up")
 print("[2] _parse_packet")
 p, err = c._parse_packet(json.dumps(GOOD_PACKET))
 falsy(err, "good packet → no error")
-eq(p["action"], "ar_post_gl", "good packet parsed")
+eq(p["action"], "ar_issue_invoice", "good packet parsed")
 _, err = c._parse_packet("")
 eq(err["code"], "AR_VALIDATION", "empty packet → AR_VALIDATION")
 _, err = c._parse_packet("not json")
@@ -386,7 +386,7 @@ for k in ("revenue_summary", "expense_summary", "invoice_summary",
           "validation_report"):
     truthy(k in pkt["summaries"], f"packet summaries has {k}")
 eq(pkt["approval_ref"], req["approval_ref"], "packet carries approval_ref")
-eq(pkt["action"], "ar_post_gl", "packet carries action")
+eq(pkt["action"], "ar_issue_invoice", "packet carries action")
 # summaries pass-through (whatever the caller supplied)
 eq(pkt["summaries"]["revenue_summary"], {"total": "10000.00"},
    "revenue_summary passed through")
@@ -443,7 +443,7 @@ st = c.ApprovalFlowState(trace_id="t1", flow_id="ar_approval",
                          decided_by="keycloak-sub-1", decided_at="2026-01-01T00:00:00Z",
                          reason="ok", approval_ref=ref,
                          approval_request={"approval_id": "aid", "approval_ref": ref,
-                                           "tier": "approval", "action": "ar_post_gl",
+                                           "tier": "approval", "action": "ar_issue_invoice",
                                            "idempotency_key": "ar-idem:1"})
 ar = c._build_approval_result(st)
 for k in ("approval_id", "approval_ref", "decision", "decided_by", "decided_at",
@@ -457,7 +457,7 @@ aid = c._audit_ref("t1", "audit")
 rec = c._build_audit_record(st, aid)
 eq(rec["append_only"], True, "audit append_only=true (§13)")
 eq(rec["actor"], "keycloak-sub-1", "audit actor = decided_by (§13)")
-eq(rec["action"], "approval.decision:ar_post_gl", "audit action shape")
+eq(rec["action"], "approval.decision:ar_issue_invoice", "audit action shape")
 eq(rec["approval_ref"], ref, "audit approval_ref link")
 eq(rec["before"], {"status": "pending"}, "audit before delta")
 eq(rec["after"], {"decision": "approved", "reason": "ok"}, "audit after delta")
@@ -505,7 +505,7 @@ truthy(_re.match(c.APPROVAL_REF_RE.pattern + r"$", env["approval_ref"]),
 eq(len(env["data"]["options"]), 3, "3 options presented (approve/reject/request_changes)")
 eq(set(env["data"]["options"]), {"approve", "reject", "request_changes"}, "options set")
 truthy(env["data"]["packet"], "pending envelope carries the presentation packet")
-eq(env["data"]["action"], "ar_post_gl", "pending data.action")
+eq(env["data"]["action"], "ar_issue_invoice", "pending data.action")
 ref = env["approval_ref"]
 
 # (2) resume "approve <ref>" → AR_OK + approved
@@ -519,7 +519,7 @@ eq(env["data"]["approval_result"]["consumed"], False, "consumed false on capture
 eq(len(env["data"]["audit_records"]), 1, "1 audit record logged (§13)")
 eq(env["data"]["audit_records"][0]["actor"], "keycloak-sub-tester",
    "audit actor = run actor")
-eq(env["data"]["audit_records"][0]["action"], "approval.decision:ar_post_gl",
+eq(env["data"]["audit_records"][0]["action"], "approval.decision:ar_issue_invoice",
    "audit action shape")
 eq(env["data"]["audit_records"][0]["append_only"], True, "audit append_only")
 eq(env["data"]["workflow_state"]["status"], "completed",
