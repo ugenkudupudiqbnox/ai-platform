@@ -12,7 +12,7 @@
   "properties": {
     "approval_id": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
     "approval_ref": {"type": "string", "pattern": "^ar-approval-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", "description": "The non-reusable authorization reference (§19)."},
-    "decision": {"type": "string", "enum": ["approved", "rejected", "expired"]},
+    "decision": {"type": "string", "enum": ["approved", "rejected", "request_changes", "expired"], "description": "The captured decision. `request_changes` returns the request to the requester for revision (terminal for that approval_ref — §19 non-reusable: the requester must submit a new packet → new trace → new ref)."},
     "decided_by": {"type": "string", "minLength": 1, "description": "Keycloak sub of the approver (§13/§19)."},
     "decided_at": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"},
     "trace_id": {"type": "string", "minLength": 1},

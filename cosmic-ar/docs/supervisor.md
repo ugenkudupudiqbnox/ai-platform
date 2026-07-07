@@ -133,9 +133,13 @@ per §5/§9 — it catches at the boundary and returns an `AR_UNEXPECTED` envelo
       wire `AR_AGENT_DB_*` onto `langflow` (durable checkpointer).
 - [ ] Import the fifteen subflow placeholders (incl. the wired `ar_file_intake`,
       `ar_intercompany_sales`, `ar_kitchen_revenue`, `ar_foodics_processing`,
-      `ar_calculation`, and `ar_invoice_generation`), then `supervisor.json`;
-      open the supervisor flow so each `RunFlow` node resolves
-      `flow_id_selected`.
+      `ar_calculation`, `ar_invoice_generation`, and `ar_approval`), then
+      `supervisor.json`; open the supervisor flow so each `RunFlow` node resolves
+      `flow_id_selected`. (`ar_approval` is now a real implemented standalone
+      presentational approval flow — see [approval-flow.md](approval-flow.md) /
+      [ADR-0010](adr/adr-0010-approval-flow.md); the supervisor's internal
+      `_node_gate` is unchanged. The supervisor resume-path ↔ `ar_approval`
+      subflow interaction is a build-phase live-test item.)
 - [ ] Set `LANGFLOW_ADAPTER_FLOW_IDS` (in `.env`) to the supervisor UUID.
 - [ ] Optional: wire an LLM classifier behind `model_name` (deterministic v1
       needs no API key).

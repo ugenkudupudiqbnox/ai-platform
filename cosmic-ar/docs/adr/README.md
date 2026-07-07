@@ -11,6 +11,7 @@
 | [0007](adr-0007-foodics-processing-flow.md) | Foodics Processing Flow: 13th subflow, Order + Order Items + Order Payments → consolidated/pivot/payment-type/discounts/Zoho upload format/draft InvoiceData per order, compute + draft only | Accepted |
 | [0008](adr-0008-calculation-flow.md) | Calculation Flow: 14th subflow, validated JSON → Revenue/Discount/VAT/Municipality Tax/Royalty/Collections/Expenses/Net Receivable/Net Payable via the Business Rule Engine (§55 waiver — figures only), read-only compute + report | Accepted |
 | [0009](adr-0009-invoice-generation-flow.md) | Invoice Generation Flow: 15th subflow, validated-JSON invoice request → Invoice JSON/PDF render-spec/Excel render-spec/draft Journal Entry/Customer Statement/Zoho Upload File/Metadata + WorkflowState (read-only generate + draft; PDF/Excel binaries build-phase) | Accepted |
+| [0010](adr-0010-approval-flow.md) | Human Approval Flow: 9th subflow implemented, validated-JSON review packet → §19 interrupt pause/present/capture/resume + Approve/Reject/Request-Changes + WorkflowState + audit (standalone presentational surface; `approval-result` `decision` enum += `request_changes`) | Accepted |
 | [adr-000-template.md](adr-000-template.md) | Template for new ADRs | — |
 
 ## When to write an ADR

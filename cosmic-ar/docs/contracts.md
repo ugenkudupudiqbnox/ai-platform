@@ -635,7 +635,7 @@ replay with the same ref is then rejected.
 |-------|------|------|
 | `approval_id` | uuid | required |
 | `approval_ref` | `^ar-approval-<uuid>$` | required (non-reusable) |
-| `decision` | enum | required — `approved\|rejected\|expired` |
+| `decision` | enum | required — `approved\|rejected\|request_changes\|expired` |
 | `decided_by` | string | required (Keycloak sub) |
 | `decided_at` | datetime | required |
 | `trace_id` | string | required |

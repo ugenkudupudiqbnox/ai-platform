@@ -71,7 +71,10 @@ Calculation Flow (`ar_calculation`, the 14th subflow — see
 [ADR-0008](docs/adr/adr-0008-calculation-flow.md)), the **wired** Invoice
 Generation Flow (`ar_invoice_generation`, the 15th subflow — see
 [docs/invoice-generation.md](docs/invoice-generation.md) and
-[ADR-0009](docs/adr/adr-0009-invoice-generation-flow.md)), and nine placeholder
+[ADR-0009](docs/adr/adr-0009-invoice-generation-flow.md)), the **wired** Human
+Approval Flow (`ar_approval`, the 9th subflow — see
+[docs/approval-flow.md](docs/approval-flow.md) and
+[ADR-0010](docs/adr/adr-0010-approval-flow.md)), and eight placeholder
 business subflows. Flow **definitions** live in the LangFlow Postgres DB
 (constitution §7), not on disk — these JSONs are import artifacts, not
 auto-loaded.
@@ -107,7 +110,12 @@ render-spec/Excel render-spec/draft Journal Entry/Customer Statement/Zoho Upload
 File/Invoice Metadata + WorkflowState; v1 read-only generate + draft, no
 posting; PDF/Excel binaries are build-phase); see
 [docs/invoice-generation.md](docs/invoice-generation.md) and
-[ADR-0009](docs/adr/adr-0009-invoice-generation-flow.md). Remaining build-phase
+[ADR-0009](docs/adr/adr-0009-invoice-generation-flow.md). The **Human Approval
+Flow** is implemented (real LangGraph + wired canvas + §19 interrupt
+pause/present/capture/resume + 3-way Approve/Reject/Request-Changes +
+WorkflowState + audit logging; standalone presentational surface, no supervisor
+change); see [docs/approval-flow.md](docs/approval-flow.md) and
+[ADR-0010](docs/adr/adr-0010-approval-flow.md). Remaining build-phase
 work (not done here):
 
 1. ~~Implement the LangGraph `StateGraph[AgentState]` + checkpointer in
@@ -120,14 +128,15 @@ work (not done here):
    them; their internals are separate tasks). The File Intake Flow (10th
    subflow), the Intercompany Sales Flow (11th subflow), the Cosmic Kitchen
    Revenue Flow (12th subflow), the Foodics Processing Flow (13th subflow), the
-   Calculation Flow (14th subflow), and the Invoice Generation Flow (15th
-   subflow) are done.
-5. Wire the nine business subflows in the LangFlow UI and import their real
-   flow JSONs (the nine skeletons here are still placeholders; `supervisor.json`,
+   Calculation Flow (14th subflow), the Invoice Generation Flow (15th subflow),
+   and the Human Approval Flow (9th subflow) are done; eight business subflows
+   remain.
+5. Wire the eight business subflows in the LangFlow UI and import their real
+   flow JSONs (the eight skeletons here are still placeholders; `supervisor.json`,
    `ar_file_intake.json`, `ar_intercompany_sales.json`,
    `ar_kitchen_revenue.json`, `ar_foodics_processing.json`,
-   `ar_calculation.json`, and `ar_invoice_generation.json` are wired — import
-   the fifteen subflows first, then the supervisor, per
+   `ar_calculation.json`, `ar_invoice_generation.json`, and `ar_approval.json`
+   are wired — import the fifteen subflows first, then the supervisor, per
    [flows/README.md](flows/README.md)).
 6. Provision the `ar_agent` Postgres DB and swap `InMemorySaver` →
    `langgraph-checkpoint-postgres` (durable resume — see build-phase
@@ -195,6 +204,7 @@ python3 -c "import json; json.load(open('cosmic-ar/flows/ar_kitchen_revenue.json
 python3 -c "import json; json.load(open('cosmic-ar/flows/ar_foodics_processing.json'))"
 python3 -c "import json; json.load(open('cosmic-ar/flows/ar_calculation.json'))"
 python3 -c "import json; json.load(open('cosmic-ar/flows/ar_invoice_generation.json'))"
+python3 -c "import json; json.load(open('cosmic-ar/flows/ar_approval.json'))"
 bash scripts/file-intake.selftest.sh   # 86 pure-function checks (file intake)
 bash scripts/intercompany-sales.selftest.sh   # 135 pure-function checks (intercompany sales)
 bash scripts/kitchen-revenue.selftest.sh   # 199 pure-function checks (kitchen revenue)
@@ -202,9 +212,10 @@ bash scripts/foodics-processing.selftest.sh   # 204 pure-function checks (foodic
 bash scripts/business-rule-engine.selftest.sh   # 79 pure-function checks (business rule engine)
 bash scripts/calculation.selftest.sh   # 112 pure-function checks (calculation flow)
 bash scripts/invoice-generation.selftest.sh   # 186 pure-function + end-to-end checks (invoice generation flow)
-shellcheck -x docker/postgres/init/02-ar-agent-db.sh scripts/adapter.selftest.sh scripts/file-intake.selftest.sh scripts/intercompany-sales.selftest.sh scripts/kitchen-revenue.selftest.sh scripts/foodics-processing.selftest.sh scripts/business-rule-engine.selftest.sh scripts/calculation.selftest.sh scripts/invoice-generation.selftest.sh
+bash scripts/approval-flow.selftest.sh   # 158 pure-function + end-to-end pause/resume checks (human approval flow)
+shellcheck -x docker/postgres/init/02-ar-agent-db.sh scripts/adapter.selftest.sh scripts/file-intake.selftest.sh scripts/intercompany-sales.selftest.sh scripts/kitchen-revenue.selftest.sh scripts/foodics-processing.selftest.sh scripts/business-rule-engine.selftest.sh scripts/calculation.selftest.sh scripts/invoice-generation.selftest.sh scripts/approval-flow.selftest.sh
 make validate
-make test        # adapter.selftest.sh (43) + file-intake.selftest.sh (86) + intercompany-sales.selftest.sh (135) + kitchen-revenue.selftest.sh (199) + foodics-processing.selftest.sh (204) + business-rule-engine.selftest.sh (79) + calculation.selftest.sh (112) + invoice-generation.selftest.sh (186)
+make test        # adapter.selftest.sh (43) + file-intake.selftest.sh (86) + intercompany-sales.selftest.sh (135) + kitchen-revenue.selftest.sh (199) + foodics-processing.selftest.sh (204) + business-rule-engine.selftest.sh (79) + calculation.selftest.sh (112) + invoice-generation.selftest.sh (186) + approval-flow.selftest.sh (158)
 # Post-deploy (running stack):
 docker exec langflow python -m lfx extension validate /app/extensions/ar_common
 docker exec langflow python -m lfx extension validate /app/extensions/ar_tools

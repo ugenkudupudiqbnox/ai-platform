@@ -134,7 +134,7 @@ _<object>` (§6); tiers follow §19.
 | 6 | `ar_post_gl` | Post received payment to the GL | approval | Envelope, ApprovalGate, Idempotency, Checkpoint, Audit | ZohoBooksARTool |
 | 7 | `ar_issue_invoice` | Issue/present a new AR invoice | approval | Envelope, ApprovalGate, Idempotency, Checkpoint, Audit | ZohoBooksARTool |
 | 8 | `ar_reporting` | AR aging / dashboard extract | read-only | Envelope | ZohoBooksARTool, FoodicsARTool |
-| 9 | `ar_approval` | Capture/fulfill human approval (pending → approved/rejected); reused by 3/6/7 | approval / dual-control | ApprovalGate, Checkpoint, Audit | — |
+| 9 | `ar_approval` | Capture/fulfill human approval (pending → approved/rejected/request_changes); present Revenue/Expense/Invoice/Validation summaries; pause via §19 interrupt, resume on decision; update WorkflowState; log audit (§13). Reused by 3/6/7 | approval / dual-control | ApprovalGate, Checkpoint, Audit | JSON review-packet input |
 | 10 | `ar_file_intake` | Parse an uploaded Excel/CSV/PDF into a `DocumentManifest` (classify, extract metadata, validate) | read-only | Envelope, Validation, Checkpoint, Audit | File node (upload) |
 | 11 | `ar_intercompany_sales` | Read a KOT (Kitchen Order Ticket) Excel from intercompany buyer restaurants, validate rows, calculate revenue at the agreed rate, generate draft `InvoiceData` per buyer + Validation/Exception reports | approval (v1 draft-only) | Envelope, Validation, Checkpoint, Audit | File node (KOT upload) |
 | 12 | `ar_kitchen_revenue` | Read the four Cosmic Kitchen sheets (Menu Sales Analysis, Daily Sales, Detailed Check Payment, Marriott Backup); compute Revenue (Breakfast/Half Board segments), Collections, Expenses, Net Receivable, Net Payable; generate Revenue JSON + Validation/Exception reports | read-only | Envelope, Validation, Checkpoint, Audit | File node (4-sheet upload) |
@@ -228,7 +228,18 @@ _<object>` (§6); tiers follow §19.
 
 > `ar_approval` is the shared human-in-the-loop gate (§19). Any subflow whose tier
 > is `approval` or `dual-control` routes through it; it writes the checkpoint and
-> returns `pending_approval` in the envelope (§14) until fulfilled.
+> returns `pending_approval` in the envelope (§14) until fulfilled. Row 9
+> (`ar_approval`) is implemented as a **standalone presentational approval flow**
+> by [ADR-0010](../cosmic-ar/docs/adr/adr-0010-approval-flow.md) — a real
+> LangGraph `HumanApprovalFlowComponent` that takes a validated-JSON review
+> packet (Revenue/Expense/Invoice/Validation summaries + proposal), pauses via
+> §19 `interrupt()`, presents the packet, captures an Approve/Reject/Request-
+> Changes decision on resume, updates `WorkflowState`, and logs an audit record
+> (§13). The supervisor's internal `_node_gate` continues to handle mid-run
+> financial gating unchanged (no `supervisor.py`/`supervisor.json` edit); the
+> supervisor resume-path ↔ `ar_approval` subflow interaction is a build-phase
+> live-test item. The `approval-result.schema.json` `decision` enum is amended
+> to add `request_changes` (ADR-0010 §4). No count change — §4 stays "Fifteen".
 
 ## 5. Flow Diagram (LangGraph StateGraph)
 
