@@ -74,7 +74,10 @@ Generation Flow (`ar_invoice_generation`, the 15th subflow — see
 [ADR-0009](docs/adr/adr-0009-invoice-generation-flow.md)), the **wired** Human
 Approval Flow (`ar_approval`, the 9th subflow — see
 [docs/approval-flow.md](docs/approval-flow.md) and
-[ADR-0010](docs/adr/adr-0010-approval-flow.md)), and eight placeholder
+[ADR-0010](docs/adr/adr-0010-approval-flow.md)), the **wired** Zoho Upload
+Flow (`ar_issue_invoice`, the 7th subflow — see
+[docs/zoho-upload-flow.md](docs/zoho-upload-flow.md) and
+[ADR-0011](docs/adr/adr-0011-zoho-upload-flow.md)), and seven placeholder
 business subflows. Flow **definitions** live in the LangFlow Postgres DB
 (constitution §7), not on disk — these JSONs are import artifacts, not
 auto-loaded.
@@ -115,7 +118,15 @@ Flow** is implemented (real LangGraph + wired canvas + §19 interrupt
 pause/present/capture/resume + 3-way Approve/Reject/Request-Changes +
 WorkflowState + audit logging; standalone presentational surface, no supervisor
 change); see [docs/approval-flow.md](docs/approval-flow.md) and
-[ADR-0010](docs/adr/adr-0010-approval-flow.md). Remaining build-phase
+[ADR-0010](docs/adr/adr-0010-approval-flow.md). The **Zoho Upload Flow** is
+implemented (real LangGraph + wired canvas + a validated-JSON
+`ZohoUploadRequest` → §10-retried upload to Zoho Books → all-or-nothing
+rollback of created invoices on partial failure → canonical `ZohoUploadResult`
+per create + enriched per-invoice view with `rolled_back` + `WorkflowState` +
+audit per create/rollback (§13); §1 `approval_ref` required at the boundary, no
+in-flow interrupt; deterministic stub transport v1 — real `ZohoBooksARTool`
+POST/DELETE build-phase); see [docs/zoho-upload-flow.md](docs/zoho-upload-flow.md)
+and [ADR-0011](docs/adr/adr-0011-zoho-upload-flow.md). Remaining build-phase
 work (not done here):
 
 1. ~~Implement the LangGraph `StateGraph[AgentState]` + checkpointer in
@@ -129,15 +140,15 @@ work (not done here):
    subflow), the Intercompany Sales Flow (11th subflow), the Cosmic Kitchen
    Revenue Flow (12th subflow), the Foodics Processing Flow (13th subflow), the
    Calculation Flow (14th subflow), the Invoice Generation Flow (15th subflow),
-   and the Human Approval Flow (9th subflow) are done; eight business subflows
-   remain.
-5. Wire the eight business subflows in the LangFlow UI and import their real
-   flow JSONs (the eight skeletons here are still placeholders; `supervisor.json`,
+   the Human Approval Flow (9th subflow), and the Zoho Upload Flow (7th subflow)
+   are done; seven business subflows remain.
+5. Wire the seven business subflows in the LangFlow UI and import their real
+   flow JSONs (the seven skeletons here are still placeholders; `supervisor.json`,
    `ar_file_intake.json`, `ar_intercompany_sales.json`,
    `ar_kitchen_revenue.json`, `ar_foodics_processing.json`,
-   `ar_calculation.json`, `ar_invoice_generation.json`, and `ar_approval.json`
-   are wired — import the fifteen subflows first, then the supervisor, per
-   [flows/README.md](flows/README.md)).
+   `ar_calculation.json`, `ar_invoice_generation.json`, `ar_approval.json`, and
+   `ar_issue_invoice.json` are wired — import the fifteen subflows first, then
+   the supervisor, per [flows/README.md](flows/README.md)).
 6. Provision the `ar_agent` Postgres DB and swap `InMemorySaver` →
    `langgraph-checkpoint-postgres` (durable resume — see build-phase
    integration below). The File Intake Flow's `InMemorySaver` swaps for free
@@ -205,6 +216,7 @@ python3 -c "import json; json.load(open('cosmic-ar/flows/ar_foodics_processing.j
 python3 -c "import json; json.load(open('cosmic-ar/flows/ar_calculation.json'))"
 python3 -c "import json; json.load(open('cosmic-ar/flows/ar_invoice_generation.json'))"
 python3 -c "import json; json.load(open('cosmic-ar/flows/ar_approval.json'))"
+python3 -c "import json; json.load(open('cosmic-ar/flows/ar_issue_invoice.json'))"
 bash scripts/file-intake.selftest.sh   # 86 pure-function checks (file intake)
 bash scripts/intercompany-sales.selftest.sh   # 135 pure-function checks (intercompany sales)
 bash scripts/kitchen-revenue.selftest.sh   # 199 pure-function checks (kitchen revenue)
@@ -213,9 +225,10 @@ bash scripts/business-rule-engine.selftest.sh   # 79 pure-function checks (busin
 bash scripts/calculation.selftest.sh   # 112 pure-function checks (calculation flow)
 bash scripts/invoice-generation.selftest.sh   # 186 pure-function + end-to-end checks (invoice generation flow)
 bash scripts/approval-flow.selftest.sh   # 158 pure-function + end-to-end pause/resume checks (human approval flow)
-shellcheck -x docker/postgres/init/02-ar-agent-db.sh scripts/adapter.selftest.sh scripts/file-intake.selftest.sh scripts/intercompany-sales.selftest.sh scripts/kitchen-revenue.selftest.sh scripts/foodics-processing.selftest.sh scripts/business-rule-engine.selftest.sh scripts/calculation.selftest.sh scripts/invoice-generation.selftest.sh scripts/approval-flow.selftest.sh
+bash scripts/zoho-upload-flow.selftest.sh   # 162 pure-function + end-to-end upload/retry/rollback checks (zoho upload flow)
+shellcheck -x docker/postgres/init/02-ar-agent-db.sh scripts/adapter.selftest.sh scripts/file-intake.selftest.sh scripts/intercompany-sales.selftest.sh scripts/kitchen-revenue.selftest.sh scripts/foodics-processing.selftest.sh scripts/business-rule-engine.selftest.sh scripts/calculation.selftest.sh scripts/invoice-generation.selftest.sh scripts/approval-flow.selftest.sh scripts/zoho-upload-flow.selftest.sh
 make validate
-make test        # adapter.selftest.sh (43) + file-intake.selftest.sh (86) + intercompany-sales.selftest.sh (135) + kitchen-revenue.selftest.sh (199) + foodics-processing.selftest.sh (204) + business-rule-engine.selftest.sh (79) + calculation.selftest.sh (112) + invoice-generation.selftest.sh (186) + approval-flow.selftest.sh (158)
+make test        # adapter.selftest.sh (43) + file-intake.selftest.sh (86) + intercompany-sales.selftest.sh (135) + kitchen-revenue.selftest.sh (199) + foodics-processing.selftest.sh (204) + business-rule-engine.selftest.sh (79) + calculation.selftest.sh (112) + invoice-generation.selftest.sh (186) + approval-flow.selftest.sh (158) + zoho-upload-flow.selftest.sh (162)
 # Post-deploy (running stack):
 docker exec langflow python -m lfx extension validate /app/extensions/ar_common
 docker exec langflow python -m lfx extension validate /app/extensions/ar_tools

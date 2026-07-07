@@ -18,7 +18,7 @@ The 16 JSON files here are **LangFlow export skeletons** for the Cosmic AR Agent
 | `ar_reconcile.json` | `ar_reconcile` |
 | `ar_dunning.json` | `ar_dunning` |
 | `ar_post_gl.json` | `ar_post_gl` |
-| `ar_issue_invoice.json` | `ar_issue_invoice` |
+| `ar_issue_invoice.json` | `ar_issue_invoice` — the **wired** Zoho Upload Flow: `ZohoUploadFlowComponent` (real LangGraph) + `ChatInput`/`ChatOutput` (3 nodes / 2 edges, no `files` edge). The 7th subflow. See [docs/zoho-upload-flow.md](../docs/zoho-upload-flow.md) and [ADR-0011](../docs/adr/adr-0011-zoho-upload-flow.md). |
 | `ar_reporting.json` | `ar_reporting` |
 | `ar_approval.json` | `ar_approval` |
 
@@ -26,27 +26,28 @@ The 16 JSON files here are **LangFlow export skeletons** for the Cosmic AR Agent
 > These files are **import artifacts** — `supervisor.json`, `ar_file_intake.json`,
 > `ar_intercompany_sales.json`, `ar_kitchen_revenue.json`,
 > `ar_foodics_processing.json`, `ar_calculation.json`,
-> `ar_invoice_generation.json`, and `ar_approval.json` are fully wired (their
-> nodes embed the real component sources, so they import as working canvases);
-> the eight business-subflow skeletons are empty-graph placeholders you import
-> and then wire to the bundled components. None are auto-loaded by the `langflow`
-> container.
+> `ar_invoice_generation.json`, `ar_approval.json`, and `ar_issue_invoice.json`
+> are fully wired (their nodes embed the real component sources, so they import
+> as working canvases); the seven business-subflow skeletons are empty-graph
+> placeholders you import and then wire to the bundled components. None are
+> auto-loaded by the `langflow` container.
 
 ## Import order / `flow_id` resolution
 
 The fifteen `RunFlow` nodes in `supervisor.json` reference each subflow by
 `flow_name_selected` (e.g. `ar_fetch_invoices`, `ar_file_intake`,
 `ar_intercompany_sales`, `ar_kitchen_revenue`, `ar_foodics_processing`,
-`ar_calculation`, `ar_invoice_generation`, `ar_approval`) with
+`ar_calculation`, `ar_invoice_generation`, `ar_approval`, `ar_issue_invoice`)
+with
 `flow_id_selected=null`, which LangFlow resolves at runtime **after** the
 subflow is imported. So:
 
-1. Import the **fifteen subflows first** (the eight placeholders, then wire each
+1. Import the **fifteen subflows first** (the seven placeholders, then wire each
    to the bundled `ar_common`/`ar_tools` components per the architecture's Flow
    Diagram; `ar_file_intake.json`, `ar_intercompany_sales.json`,
    `ar_kitchen_revenue.json`, `ar_foodics_processing.json`,
-   `ar_calculation.json`, `ar_invoice_generation.json`, and `ar_approval.json`
-   are already wired — import them as-is).
+   `ar_calculation.json`, `ar_invoice_generation.json`, `ar_approval.json`, and
+   `ar_issue_invoice.json` are already wired — import them as-is).
 2. Import `supervisor.json` **last**, then open it so each `RunFlow` node
    resolves its `flow_id_selected`.
 3. Record the supervisor flow's UUID into `LANGFLOW_ADAPTER_FLOW_IDS` (in

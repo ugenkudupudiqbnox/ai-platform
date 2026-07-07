@@ -132,7 +132,7 @@ _<object>` (§6); tiers follow §19.
 | 4 | `ar_reconcile` | Reconcile matched set, compute balances | auto | Envelope | ZohoBooksARTool |
 | 5 | `ar_dunning` | Send routine overdue reminders | auto | Envelope, Audit | ZohoBooksARTool |
 | 6 | `ar_post_gl` | Post received payment to the GL | approval | Envelope, ApprovalGate, Idempotency, Checkpoint, Audit | ZohoBooksARTool |
-| 7 | `ar_issue_invoice` | Issue/present a new AR invoice | approval | Envelope, ApprovalGate, Idempotency, Checkpoint, Audit | ZohoBooksARTool |
+| 7 | `ar_issue_invoice` | Issue/upload a new AR invoice to Zoho Books (validate `InvoiceData` mandatory fields → §10-retried POST → all-or-nothing rollback of created invoices on failure → store zoho_id + upload timestamp → `ZohoUploadResult` + `WorkflowState` + audit §13); §1 `approval_ref` required at the boundary (no in-flow interrupt); tier `approval` routes through `ar_approval` (row 9) | approval | Envelope, ApprovalGate, Idempotency, Checkpoint, Audit | ZohoBooksARTool |
 | 8 | `ar_reporting` | AR aging / dashboard extract | read-only | Envelope | ZohoBooksARTool, FoodicsARTool |
 | 9 | `ar_approval` | Capture/fulfill human approval (pending → approved/rejected/request_changes); present Revenue/Expense/Invoice/Validation summaries; pause via §19 interrupt, resume on decision; update WorkflowState; log audit (§13). Reused by 3/6/7 | approval / dual-control | ApprovalGate, Checkpoint, Audit | JSON review-packet input |
 | 10 | `ar_file_intake` | Parse an uploaded Excel/CSV/PDF into a `DocumentManifest` (classify, extract metadata, validate) | read-only | Envelope, Validation, Checkpoint, Audit | File node (upload) |
@@ -241,6 +241,23 @@ _<object>` (§6); tiers follow §19.
 > live-test item. The `approval-result.schema.json` `decision` enum is amended
 > to add `request_changes` (ADR-0010 §4). No count change — §4 stays "Fifteen".
 
+> Row 7 (`ar_issue_invoice`) is implemented as a **standalone Zoho upload flow**
+> by [ADR-0011](../cosmic-ar/docs/adr/adr-0011-zoho-upload-flow.md) — a real
+> LangGraph `ZohoUploadFlowComponent` that takes a validated-JSON
+> `ZohoUploadRequest` (a §1 `approval_ref` + a batch of `InvoiceData`), validates
+> each invoice's mandatory fields, uploads each to Zoho Books with §10 retry,
+> rolls back (deletes) the already-created invoices on any partial failure
+> (all-or-nothing), stores the zoho_id + upload timestamp, logs an `AuditRecord`
+> per create/rollback (§13), and returns a per-invoice `ZohoUploadResult` +
+> batch summary + `WorkflowState`. §1 is enforced at the boundary
+> (`approval_ref` required, missing/invalid → `AR_FORBIDDEN`; **no in-flow
+> `interrupt`** — approval is captured externally by the supervisor's
+> `_node_gate` / `ar_approval`, and the `approval_ref` is echoed into every
+> `AuditRecord`). v1 uses a deterministic stub transport (offline-testable); the
+> real `ZohoBooksARTool` POST/DELETE + OAuth is build-phase. No
+> `supervisor.py`/`supervisor.json` edit; no new contract schemas. No count
+> change — §4 stays "Fifteen".
+
 ## 5. Flow Diagram (LangGraph StateGraph)
 
 The supervisor's internal graph. Mutation nodes route through the approval gate
@@ -292,6 +309,12 @@ stateDiagram-v2
   deterministic where fixed — §4 design principle 3).
 - `approvalGate` is the pause/resume state: it checkpoints (§11) and emits
   `pending_approval`; the run resumes from the checkpoint on approval.
+- `ar_issue_invoice` (row 7) is now a real implemented standalone Zoho upload
+  flow ([ADR-0011](../cosmic-ar/docs/adr/adr-0011-zoho-upload-flow.md)) — it
+  requires a §1 `approval_ref` at its own boundary (no in-flow `interrupt`) and
+  executes the authorized, idempotent POST to Zoho Books with §10 retry +
+  all-or-nothing rollback; the supervisor's `approvalGate`/`_node_gate` continues
+  to capture approval before delegating the intent, unchanged.
 
 ## 6. Sequence Diagram
 

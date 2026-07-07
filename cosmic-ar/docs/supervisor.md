@@ -133,13 +133,17 @@ per §5/§9 — it catches at the boundary and returns an `AR_UNEXPECTED` envelo
       wire `AR_AGENT_DB_*` onto `langflow` (durable checkpointer).
 - [ ] Import the fifteen subflow placeholders (incl. the wired `ar_file_intake`,
       `ar_intercompany_sales`, `ar_kitchen_revenue`, `ar_foodics_processing`,
-      `ar_calculation`, `ar_invoice_generation`, and `ar_approval`), then
-      `supervisor.json`; open the supervisor flow so each `RunFlow` node resolves
-      `flow_id_selected`. (`ar_approval` is now a real implemented standalone
-      presentational approval flow — see [approval-flow.md](approval-flow.md) /
-      [ADR-0010](adr/adr-0010-approval-flow.md); the supervisor's internal
-      `_node_gate` is unchanged. The supervisor resume-path ↔ `ar_approval`
-      subflow interaction is a build-phase live-test item.)
+      `ar_calculation`, `ar_invoice_generation`, `ar_approval`, and
+      `ar_issue_invoice`), then `supervisor.json`; open the supervisor flow so
+      each `RunFlow` node resolves `flow_id_selected`. (`ar_approval` is now a
+      real implemented standalone presentational approval flow — see
+      [approval-flow.md](approval-flow.md) /
+      [ADR-0010](adr/adr-0010-approval-flow.md); `ar_issue_invoice` is now a real
+      implemented standalone Zoho upload flow — see
+      [zoho-upload-flow.md](zoho-upload-flow.md) /
+      [ADR-0011](adr/adr-0011-zoho-upload-flow.md); the supervisor's internal
+      `_node_gate` is unchanged. The supervisor resume-path ↔ `ar_approval` /
+      `ar_issue_invoice` subflow interactions are build-phase live-test items.)
 - [ ] Set `LANGFLOW_ADAPTER_FLOW_IDS` (in `.env`) to the supervisor UUID.
 - [ ] Optional: wire an LLM classifier behind `model_name` (deterministic v1
       needs no API key).
