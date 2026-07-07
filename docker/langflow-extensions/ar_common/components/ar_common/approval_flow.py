@@ -341,7 +341,7 @@ def _build_approval_request(packet: dict, trace_id: str, tenant: str,
         currency = DEFAULT_CURRENCY
     requested_by = (str(packet.get("requested_by") or ctx_actor or "unknown")
                     if (packet.get("requested_by") or ctx_actor) else "unknown")
-    return {
+    req = {
         "approval_id": approval_id,
         "approval_ref": f"ar-approval-{approval_id}",
         "trace_id": trace_id,
@@ -353,10 +353,13 @@ def _build_approval_request(packet: dict, trace_id: str, tenant: str,
         "requested_by": requested_by,
         "requested_at": utc_now(),
         "proposal": packet.get("proposal") or {},
-        "idempotency_key": packet.get("idempotency_key"),
         "second_approver_required": bool(packet.get("second_approver_required", False)),
         "contract_version": CONTRACT_VERSION,
     }
+    idem = packet.get("idempotency_key")
+    if idem:
+        req["idempotency_key"] = idem
+    return req
 
 
 def _build_packet(packet: dict, approval_request: dict) -> dict[str, Any]:
@@ -470,7 +473,7 @@ def _build_approval_result(state: ApprovalFlowState) -> dict[str, Any]:
     flips on POST).
     """
     req = state.approval_request or {}
-    return {
+    result = {
         "approval_id": req.get("approval_id", ""),
         "approval_ref": state.approval_ref or req.get("approval_ref", ""),
         "decision": state.decision,
@@ -478,11 +481,14 @@ def _build_approval_result(state: ApprovalFlowState) -> dict[str, Any]:
         "decided_at": state.decided_at or utc_now(),
         "trace_id": state.trace_id,
         "tier": req.get("tier", "approval"),
-        "idempotency_key": req.get("idempotency_key"),
         "reason": state.reason or "",
         "consumed": False,
         "contract_version": CONTRACT_VERSION,
     }
+    idem = req.get("idempotency_key")
+    if idem:
+        result["idempotency_key"] = idem
+    return result
 
 
 def _build_audit_record(state: ApprovalFlowState, audit_id: str) -> dict[str, Any]:
@@ -494,7 +500,7 @@ def _build_audit_record(state: ApprovalFlowState, audit_id: str) -> dict[str, An
     """
     req = state.approval_request or {}
     action = req.get("action", "")
-    return {
+    rec = {
         "audit_id": audit_id,
         "trace_id": state.trace_id,
         "tenant": state.tenant,
@@ -503,11 +509,14 @@ def _build_audit_record(state: ApprovalFlowState, audit_id: str) -> dict[str, An
         "timestamp": state.decided_at or utc_now(),
         "append_only": True,
         "approval_ref": state.approval_ref or "",
-        "idempotency_key": req.get("idempotency_key"),
         "before": {"status": "pending"},
         "after": {"decision": state.decision, "reason": state.reason or ""},
         "contract_version": CONTRACT_VERSION,
     }
+    idem = req.get("idempotency_key")
+    if idem:
+        rec["idempotency_key"] = idem
+    return rec
 
 
 def build_workflow_state(trace_id: str, flow_id: str, tenant: str,
@@ -950,13 +959,19 @@ class HumanApprovalFlowComponent(Component):
                                          "message": "approval failed"}
             code = err.get("code", "AR_UNEXPECTED") if isinstance(err, dict) \
                 else "AR_UNEXPECTED"
+            err_env = {"message": err.get("message", "") if isinstance(err, dict) else str(err)}
+            if isinstance(err, dict) and err.get("detail"):
+                err_env["detail"] = err["detail"]
             env = dict(base)
             env.update({"status": "error", "code": code,
-                        "approval_ref": vals.get("approval_ref", ""),
-                        "data": data, "error": err})
+                        "data": data, "error": err_env})
+            ref = vals.get("approval_ref", "")
+            if ref:
+                env["approval_ref"] = ref
             return env
         env = dict(base)
-        env.update({"status": "ok", "code": "AR_OK",
-                    "approval_ref": vals.get("approval_ref", ""),
-                    "data": data})
+        env.update({"status": "ok", "code": "AR_OK", "data": data})
+        ref = vals.get("approval_ref", "")
+        if ref:
+            env["approval_ref"] = ref
         return env

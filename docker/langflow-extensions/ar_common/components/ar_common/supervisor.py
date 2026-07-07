@@ -866,11 +866,14 @@ class SupervisorAgentComponent(Component):
             return env
         if state.status == "failed":
             err = state.error or {"code": "AR_UNEXPECTED", "message": "run failed"}
+            err_env = {"message": err.get("message", "") if isinstance(err, dict) else str(err)}
+            if isinstance(err, dict) and err.get("detail"):
+                err_env["detail"] = err["detail"]
             env = dict(base)
             env.update({"status": "error", "code": err.get("code", "AR_UNEXPECTED"),
-                        "approval_ref": "", "error": err})
+                        "error": err_env})
             return env
         # completed (default)
         env = dict(base)
-        env.update({"status": "ok", "code": "AR_OK", "approval_ref": ""})
+        env.update({"status": "ok", "code": "AR_OK"})
         return env

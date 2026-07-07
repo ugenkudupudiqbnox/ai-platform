@@ -41,8 +41,8 @@
     },
     "approval_ref": {
       "type": "string",
-      "pattern": "^ar-approval-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-      "description": "Present only on status=pending_approval; identifies the approval to fulfill (§19). Non-reusable: one ref authorizes exactly one idempotent action."
+      "pattern": "^(ar-approval-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?$",
+      "description": "Required on status=pending_approval (identifies the approval to fulfill, §19; non-reusable: one ref authorizes exactly one idempotent action). Empty/absent on ok or error — §14's canonical example renders this as the empty string, so the empty value is permitted even though a present ref must match the ar-approval-<uuid> shape."
     }
   }
 }

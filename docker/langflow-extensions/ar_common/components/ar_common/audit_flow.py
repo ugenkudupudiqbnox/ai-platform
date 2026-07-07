@@ -1007,7 +1007,7 @@ class AuditFlowComponent(Component):
             env = _envelope("error", CODE_UNEXPECTED,
                             error={"message": "Audit flow run failed.",
                                    "detail": str(exc)[:500]},
-                            trace_id="")
+                            trace_id=mint_id())
             try:
                 self.log("event=audit.run outcome=error code=AR_UNEXPECTED")
             except Exception:  # noqa: BLE001 — logging must never crash the boundary
@@ -1064,8 +1064,11 @@ class AuditFlowComponent(Component):
                                          "message": "audit flow failed"}
             code = err.get("code", CODE_UNEXPECTED) if isinstance(err, dict) \
                 else CODE_UNEXPECTED
+            err_env = {"message": err.get("message", "") if isinstance(err, dict) else str(err)}
+            if isinstance(err, dict) and err.get("detail"):
+                err_env["detail"] = err["detail"]
             return {"status": "error", "code": code, "trace_id": trace_id,
-                    "data": data, "error": err,
+                    "data": data, "error": err_env,
                     "flow_id": vals.get("flow_id", "")}
         return {"status": "ok", "code": CODE_OK, "trace_id": trace_id,
                 "data": data, "flow_id": vals.get("flow_id", "")}

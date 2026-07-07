@@ -1280,8 +1280,11 @@ class ZohoUploadFlowComponent(Component):
                                          "message": "zoho upload failed"}
             code = err.get("code", "AR_UNEXPECTED") if isinstance(err, dict) \
                 else "AR_UNEXPECTED"
+            err_env = {"message": err.get("message", "") if isinstance(err, dict) else str(err)}
+            if isinstance(err, dict) and err.get("detail"):
+                err_env["detail"] = err["detail"]
             return {"status": "error", "code": code, "trace_id": trace_id,
-                    "data": data, "error": err,
+                    "data": data, "error": err_env,
                     "flow_id": vals.get("flow_id", "")}
         return {"status": "ok", "code": "AR_OK", "trace_id": trace_id,
                 "data": data, "flow_id": vals.get("flow_id", "")}

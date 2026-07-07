@@ -860,6 +860,50 @@ Full example: [`../contracts/examples/execution-summary.json`](../contracts/exam
 
 ---
 
+## Documented v1 caveats (not gaps)
+
+The v1 implementation deviates from strict conformance in the following named,
+tracked ways. Each is a deliberate scoping decision with a deferred follow-up —
+**not** a latent defect to "fix" piecemeal. A deviation outside this list
+requires a written waiver + ADR (per the authority note above).
+
+- **`V1-ENVELOPE-META`** — the §14 envelope is strictly six keys
+  (`status, code, data, error{message,detail}, trace_id, approval_ref`), and
+  `execution-summary.schema.json` defines the richer run-metadata
+  (`flow_id, tenant, intent, totals, audit_refs, checkpoint_id,
+  subflows_invoked, started_at, ended_at, contract_version, approvals,
+  error{code,message}`) as living **under the envelope `data` field**. The v1
+  components, however, emit those run-metadata keys at the **envelope top
+  level** (alongside `status`/`code`/`data`/…), and the adapter reads
+  `checkpoint_id` from the top level (`adapter.py`). Self-tests assert this
+  hybrid shape, so it is the de-facto v1 contract. The strict-conformance
+  reshape — moving the metadata under `data.execution_summary` across the nine
+  components + supervisor, updating the adapter's `checkpoint_id` read, and
+  rewriting the self-tests + both schemas — is **deferred to v2** because it is
+  a coordinated multi-file contract change, not a single-flow fix. Until then
+  the top-level metadata is an accepted extension. The unambiguous
+  §14-aligned sub-defects (omit empty `approval_ref`; strip `error.code` at the
+  envelope `error` level; conditional `idempotency_key`; thread `trace_id` on
+  `AR_UNEXPECTED`) **were** closed in this pass; only the metadata relocation is
+  deferred here.
+- **`V1-DUAL-CONTROL`** — §19 specifies dual-control approval (a second human
+  approver distinct from the requester). The v1 Human Approval Flow models a
+  single approval pause/resume (`HumanApprovalFlowComponent`, §19 interrupt);
+  it records the approver and the decision but does **not** enforce a distinct
+  second approver or a separation-of-duties check. Enforcing dual control
+  (second-approver identity, SoD, approval-chain immutability) is a
+  build-phase feature tracked here — a documentation caveat, not a behavioral
+  regression, since no v1 path mutates money on approval alone (the §1
+  approval boundary + `approval_ref`+`idempotency_key` gate still holds).
+
+For the historical build-phase caveat set carried by the individual flows (Zoho
+transport stub, PDF/Excel render-ready specs, InMemorySaver non-durability,
+draft-only gates, cross-subflow audit auto-accumulation, `SecretStrInput`
+absence, resume-path live interaction, the retired `ar08` RunFlow slot), see
+the per-flow docs and the cited ADRs.
+
+---
+
 ## Appendix — validating
 
 See [`../contracts/README.md`](../contracts/README.md) for the layout, the

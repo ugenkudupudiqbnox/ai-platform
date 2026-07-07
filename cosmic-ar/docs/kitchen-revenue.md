@@ -1,7 +1,7 @@
 # Cosmic Kitchen Revenue Flow (`ar_kitchen_revenue`)
 
 The **Cosmic Kitchen Revenue Flow** is the 5th AR subflow (architecture §4 row
-12; [ADR-0006](adr/adr-0006-kitchen-revenue-flow.md)). Cosmic Kitchen operates
+5; [ADR-0006](adr/adr-0006-kitchen-revenue-flow.md)). Cosmic Kitchen operates
 inside a Marriott hotel and produces four daily Excel/CSV sheets — **Menu Sales
 Analysis**, **Daily Sales**, **Detailed Check Payment**, and **Marriott
 Backup** — that together describe a period's revenue (split by meal period:

@@ -48,22 +48,28 @@ Graph edges: `START → ingest → detect_type → read → extract_metadata →
 → build_manifest → checkpoint → respond → END`, with conditional short-circuits
 to `respond` on any `failed` status (§4/§9).
 
-## Canvas wiring (4 nodes / 3 edges)
+## Canvas wiring (3 nodes / 3 edges)
 
-`ar_file_intake.json` wires:
+`ar_file_intake.json` wires (modeled on `ar_intercompany_sales.json`):
 
 - `ChatInput.message → FileIntakeFlowComponent.user_input`
-- `File.message → FileIntakeFlowComponent.files` (types `["Data","Message"]` → `["Data"]`)
+- `ChatInput.message → FileIntakeFlowComponent.files` (inputTypes
+  `["Data","Message"]`, type `source`)
 - `FileIntakeFlowComponent.intake_output → ChatOutput.input_value`
 
 The component's full source is embedded as `template.code.value` (the node
-imports the bundle's installed `FileIntakeFlowComponent`).
+imports the bundle's installed `FileIntakeFlowComponent`). There is no
+standalone `File` node — files ride on the ChatInput `.files` handle into the
+`files` HandleInput (mirrors the Intercompany Sales Flow; ADR-0003 §8 explains
+why a standalone `File` node is avoided).
 
 ## Inputs / output
 
 - **Inputs:** `user_input` (MessageTextInput, optional — carries intent
-  keywords), `files` (HandleInput, `is_list`, `input_types=["Data"]` — uploaded
-  file refs), `model_name` (MessageTextInput — documented LLM hook; deterministic
+  keywords), `files` (HandleInput, `is_list`, `input_types=["Data",
+  "Message"]` — uploaded file refs; `Data` from the canvas, `Message` from the
+  ChatInput `.files` handle), `model_name` (MessageTextInput — documented LLM
+  hook; deterministic
   v1 ignores it).
 - **Output:** `intake_output` (Message) — the §14 envelope JSON.
 
