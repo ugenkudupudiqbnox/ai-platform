@@ -241,7 +241,12 @@ def _as_list(value: Any) -> list[Any]:
 def _tools_by_name(tools: list[Any]) -> dict[str, Any]:
     """Index the wired RunFlow tools by their LangChain tool ``name``.
 
-    A RunFlow tool's name is the target flow name (e.g. ``ar_calculation``).
+    In lfx 1.10.1 a RunFlow tool's name is ``"<flow>_tool"`` (e.g.
+    ``ar_calculation_tool`` — ``run_flow._get_tools`` passes
+    ``tool_name=f"{flow_name_selected}_tool"`` to ``ComponentToolkit.get_tools``,
+    which the single-output branch sets as ``tool.name``). ``_node_invoke``
+    looks tools up by the **bare** flow id (``intent``, e.g. ``ar_calculation``),
+    so we also index each ``"<flow>_tool"`` tool under the stripped bare name.
     Tools that don't expose a usable name fall back to a substring match of the
     tool description against the known subflow ids; an empty dict means the
     canvas isn't wired yet.
@@ -251,6 +256,12 @@ def _tools_by_name(tools: list[Any]) -> dict[str, Any]:
         name = getattr(tool, "name", None) or ""
         if name:
             indexed[name] = tool
+            # Bare-intent alias: _node_invoke does tools.get(intent) where
+            # intent is the flow id ("ar_calculation"), but lfx names the tool
+            # "ar_calculation_tool". Strip the 5-char "_tool" suffix so the
+            # routable intent hits. The full "<flow>_tool" key is retained.
+            if name.endswith("_tool"):
+                indexed[name[:-5]] = tool
             continue
         desc = (getattr(tool, "description", "") or "").lower()
         for sid in SUBFLOWS:

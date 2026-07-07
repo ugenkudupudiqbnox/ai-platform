@@ -895,26 +895,42 @@ requires a written waiver + ADR (per the authority note above).
   build-phase feature tracked here — a documentation caveat, not a behavioral
   regression, since no v1 path mutates money on approval alone (the §1
   approval boundary + `approval_ref`+`idempotency_key` gate still holds).
-- **`V1-RESUME`** — the supervisor's Flow-as-Tool routing is not live-wired in
-  v1. Symptom (verified against LangFlow 1.10.1 / `lfx` 1.10.1): the supervisor
-  detects `intent` correctly but `_node_invoke` returns `AR_NOT_FOUND`
-  ("Subflow '<flow>' is not wired on the canvas") for every routed subflow.
-  Root cause is a tool-name mismatch, not missing canvas wiring: each `RunFlow`
+- **`V1-RESUME`** — the supervisor's **Flow-as-Tool routing is now live**
+  (resolved). Previously `_node_invoke` returned `AR_NOT_FOUND` ("Subflow
+  '<flow>' is not wired on the canvas") for every routed subflow: each `RunFlow`
   node's `to_toolkit` output builds a LangChain tool named
   `<flow_name_selected>_tool` (e.g. `ar_calculation_tool`) via `lfx`'s
   `ComponentToolkit.get_tools` (`tool_name=f"{flow_name_selected}_tool"`,
-  then `_format_tool_name`), and `SupervisorAgentComponent._tools_by_name`
-  indexes those tools by `tool.name`. `_node_invoke` then looks the tool up by
-  the bare `intent` (`ar_calculation`) — which is not a key — so the lookup
-  misses and the no-such-tool branch fires `AR_NOT_FOUND`. The canvas itself is
-  wired correctly (all nine RunFlow `component_as_tool` outputs → the
-  supervisor `tools` `HandleInput`). Fix is a one-line supervisor change
-  (index tools under the flow name too, e.g. also key `name[:-5]` when
-  `name.endswith("_tool")`); it is deferred to the build-phase live-test pass
-  alongside the resume path, rather than patched in the conformance pass, so
-  that the supervisor contract + self-tests stay aligned with the deferred
-  Flow-as-Tool interaction. Intent detection, envelope construction, and all
-  nine subflows run standalone (HTTP 200) independently of this caveat.
+  then `_format_tool_name`), `SupervisorAgentComponent._tools_by_name` indexed
+  those tools by `tool.name`, and `_node_invoke` looked the tool up by the bare
+  `intent` (`ar_calculation`) — which was not a key — so the lookup missed and
+  the no-such-tool branch fired `AR_NOT_FOUND`. Fix: `_tools_by_name` now also
+  indexes each `<flow>_tool` tool under the stripped bare name (`name[:-5]`
+  when `name.endswith("_tool")`), retaining the full-name key. Verified live
+  against LangFlow 1.10.1 / `lfx` 1.10.1: every routed subflow now populates
+  `subflows_invoked` (no `AR_NOT_FOUND`); `ar_approval` and `ar_issue_invoice`
+  run end-to-end (`pending_approval` / `AR_APPROVAL_REQUIRED`). The remaining
+  Flow-as-Tool live-interaction gap is the input-binding caveat below; the
+  LangGraph §19 resume path (`Command(resume=approval_ref)`) is still
+  build-phase.
+- **`V1-FLOW-TWEAK-DATA`** — when the supervisor invokes a `RunFlow` subflow as
+  a tool, `lfx` derives an `InputSchema` from the subflow's input nodes and the
+  supervisor passes the user's chat message as the tool input. For 4 of 9
+  subflows (`ar_calculation`, `ar_kitchen_revenue`, `ar_file_intake`,
+  `ar_audit`) that schema types `flow_tweak_data` as a nested dict
+  (`InnerModel`), so the bare chat string fails pydantic validation and the
+  subflow returns `AR_UNEXPECTED`
+  ("subflow <flow> failed: … InputSchema / flow_tweak_data / Input should be a
+  valid dictionary or instance of InnerModel"). The other routed subflows that
+  accept the string (`ar_approval`, `ar_issue_invoice`) run end-to-end. Root
+  cause is in how `lfx` builds the RunFlow tool `InputSchema.flow_tweak_data`
+  from each subflow's input fields (a per-subflow input-schema / tool-binding
+  concern), not in the supervisor routing (which now resolves). Fix is deferred
+  to the build-phase live-test pass: it is a coordinated subflow-input /
+  tool-binding change (shape the supervisor's tool call to pass a dict, or
+  narrow the affected subflows' input schemas to accept the chat string), not a
+  one-line supervisor patch. All nine subflows still run standalone (HTTP 200)
+  independently of this caveat.
 
 For the historical build-phase caveat set carried by the individual flows (Zoho
 transport stub, PDF/Excel render-ready specs, InMemorySaver non-durability,
