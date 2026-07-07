@@ -322,7 +322,7 @@
             ],
             "pinned": false,
             "template": {
-              "_type": "HumanApprovalFlowComponent",
+              "_type": "Component",
               "code": {
                 "_input_type": "CodeInput",
                 "advanced": true,

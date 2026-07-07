@@ -895,6 +895,26 @@ requires a written waiver + ADR (per the authority note above).
   build-phase feature tracked here — a documentation caveat, not a behavioral
   regression, since no v1 path mutates money on approval alone (the §1
   approval boundary + `approval_ref`+`idempotency_key` gate still holds).
+- **`V1-RESUME`** — the supervisor's Flow-as-Tool routing is not live-wired in
+  v1. Symptom (verified against LangFlow 1.10.1 / `lfx` 1.10.1): the supervisor
+  detects `intent` correctly but `_node_invoke` returns `AR_NOT_FOUND`
+  ("Subflow '<flow>' is not wired on the canvas") for every routed subflow.
+  Root cause is a tool-name mismatch, not missing canvas wiring: each `RunFlow`
+  node's `to_toolkit` output builds a LangChain tool named
+  `<flow_name_selected>_tool` (e.g. `ar_calculation_tool`) via `lfx`'s
+  `ComponentToolkit.get_tools` (`tool_name=f"{flow_name_selected}_tool"`,
+  then `_format_tool_name`), and `SupervisorAgentComponent._tools_by_name`
+  indexes those tools by `tool.name`. `_node_invoke` then looks the tool up by
+  the bare `intent` (`ar_calculation`) — which is not a key — so the lookup
+  misses and the no-such-tool branch fires `AR_NOT_FOUND`. The canvas itself is
+  wired correctly (all nine RunFlow `component_as_tool` outputs → the
+  supervisor `tools` `HandleInput`). Fix is a one-line supervisor change
+  (index tools under the flow name too, e.g. also key `name[:-5]` when
+  `name.endswith("_tool")`); it is deferred to the build-phase live-test pass
+  alongside the resume path, rather than patched in the conformance pass, so
+  that the supervisor contract + self-tests stay aligned with the deferred
+  Flow-as-Tool interaction. Intent detection, envelope construction, and all
+  nine subflows run standalone (HTTP 200) independently of this caveat.
 
 For the historical build-phase caveat set carried by the individual flows (Zoho
 transport stub, PDF/Excel render-ready specs, InMemorySaver non-durability,

@@ -1799,7 +1799,7 @@
             ],
             "pinned": false,
             "template": {
-              "_type": "RunFlow",
+              "_type": "Component",
               "code": {
                 "_input_type": "CodeInput",
                 "advanced": true,
@@ -1962,7 +1962,7 @@
             ],
             "pinned": false,
             "template": {
-              "_type": "RunFlow",
+              "_type": "Component",
               "code": {
                 "_input_type": "CodeInput",
                 "advanced": true,
@@ -2125,7 +2125,7 @@
             ],
             "pinned": false,
             "template": {
-              "_type": "RunFlow",
+              "_type": "Component",
               "code": {
                 "_input_type": "CodeInput",
                 "advanced": true,

@@ -321,7 +321,7 @@
             ],
             "pinned": false,
             "template": {
-              "_type": "CalculationFlowComponent",
+              "_type": "Component",
               "code": {
                 "_input_type": "CodeInput",
                 "advanced": true,
@@ -399,7 +399,7 @@
                 "show": true,
                 "title_case": false,
                 "trace_as_metadata": false,
-                "type": "text",
+                "type": "str",
                 "value": "[\n  {\n    \"rule_id\": \"R_REVENUE\",\n    \"kind\": \"sum\",\n    \"inputs\": [\n      \"facts.gross_sales\",\n      \"facts.returns\",\n      \"facts.allowances\"\n    ],\n    \"output\": \"revenue\"\n  },\n  {\n    \"rule_id\": \"R_DISCOUNT\",\n    \"kind\": \"pct_of\",\n    \"base\": \"facts.gross_sales\",\n    \"rate\": \"parameters.discount_rate\",\n    \"output\": \"discount\"\n  },\n  {\n    \"rule_id\": \"R_VAT\",\n    \"kind\": \"pct_of\",\n    \"base\": \"outputs.revenue\",\n    \"rate\": \"parameters.vat_rate\",\n    \"output\": \"vat\"\n  },\n  {\n    \"rule_id\": \"R_MUNICIPALITY\",\n    \"kind\": \"pct_of\",\n    \"base\": \"outputs.revenue\",\n    \"rate\": \"parameters.municipality_rate\",\n    \"output\": \"municipality_tax\"\n  },\n  {\n    \"rule_id\": \"R_ROYALTY\",\n    \"kind\": \"pct_of\",\n    \"base\": \"outputs.revenue\",\n    \"rate\": \"parameters.royalty_rate\",\n    \"output\": \"royalty\"\n  },\n  {\n    \"rule_id\": \"R_COLLECTIONS\",\n    \"kind\": \"sum\",\n    \"inputs\": [\n      \"facts.cash_collected\",\n      \"facts.card_collected\",\n      \"facts.bank_collected\",\n      \"facts.online_collected\",\n      \"facts.wallet_collected\"\n    ],\n    \"output\": \"collections\"\n  },\n  {\n    \"rule_id\": \"R_EXPENSES\",\n    \"kind\": \"sum\",\n    \"inputs\": [\n      \"facts.expense_food\",\n      \"facts.expense_labor\",\n      \"facts.expense_overhead\"\n    ],\n    \"output\": \"expenses\"\n  },\n  {\n    \"rule_id\": \"R_NET_RECEIVABLE\",\n    \"kind\": \"formula\",\n    \"expr\": \"revenue - discount + vat + municipality_tax - collections\",\n    \"output\": \"net_receivable\"\n  },\n  {\n    \"rule_id\": \"R_NET_PAYABLE\",\n    \"kind\": \"formula\",\n    \"expr\": \"expenses + royalty + municipality_tax\",\n    \"output\": \"net_payable\"\n  }\n]"
               }
             }
