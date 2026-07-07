@@ -175,7 +175,7 @@ in sync (hand-rolled stdlib, no `jsonschema` dep).
 2. **Rebuild the `langflow` image** so `openpyxl` is available for `.xlsx` KOTs
    (`docker compose build langflow langflow-worker`) — already required by the
    File Intake Flow (ADR-0004 §3); CSV works without a rebuild.
-3. **Import the twelve subflows first** (incl. `ar_intercompany_sales.json`),
+3. **Import the thirteen subflows first** (incl. `ar_intercompany_sales.json`),
    then `supervisor.json`; open the supervisor flow so the 11th `RunFlow`
    resolves `flow_id_selected`.
 4. **Wire `ValidationEngineComponent`** for `InvoiceData`/`RevenueData`/

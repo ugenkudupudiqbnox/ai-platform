@@ -1,13 +1,14 @@
 # Cosmic AR — Flow import files
 
-The 12 JSON files here are **LangFlow export skeletons** for the Cosmic AR Agent:
+The 13 JSON files here are **LangFlow export skeletons** for the Cosmic AR Agent:
 
 | File | Flow |
 |------|------|
-| `supervisor.json` | `ar_supervisor` — the **wired** supervisor flow: `SupervisorAgentComponent` (real LangGraph) + twelve `RunFlow` subflow-as-tool nodes + `ChatInput`/`ChatOutput` (15 nodes / 14 edges). See [docs/supervisor.md](../docs/supervisor.md) and [ADR-0003](../docs/adr/adr-0003-supervisor-runflow-and-adapter.md). |
+| `supervisor.json` | `ar_supervisor` — the **wired** supervisor flow: `SupervisorAgentComponent` (real LangGraph) + thirteen `RunFlow` subflow-as-tool nodes + `ChatInput`/`ChatOutput` (16 nodes / 15 edges). See [docs/supervisor.md](../docs/supervisor.md) and [ADR-0003](../docs/adr/adr-0003-supervisor-runflow-and-adapter.md). |
 | `ar_file_intake.json` | `ar_file_intake` — the **wired** File Intake Flow: `FileIntakeFlowComponent` (real LangGraph) + `File` + `ChatInput`/`ChatOutput` (4 nodes / 3 edges). The 10th subflow. See [docs/file-intake.md](../docs/file-intake.md) and [ADR-0004](../docs/adr/adr-0004-file-intake-flow.md). |
 | `ar_intercompany_sales.json` | `ar_intercompany_sales` — the **wired** Intercompany Sales Flow: `IntercompanySalesFlowComponent` (real LangGraph) + `ChatInput`/`ChatOutput` (3 nodes / 3 edges). The 11th subflow. See [docs/intercompany-sales.md](../docs/intercompany-sales.md) and [ADR-0005](../docs/adr/adr-0005-intercompany-sales-flow.md). |
 | `ar_kitchen_revenue.json` | `ar_kitchen_revenue` — the **wired** Cosmic Kitchen Revenue Flow: `KitchenRevenueFlowComponent` (real LangGraph) + `ChatInput`/`ChatOutput` (3 nodes / 3 edges). The 12th subflow. See [docs/kitchen-revenue.md](../docs/kitchen-revenue.md) and [ADR-0006](../docs/adr/adr-0006-kitchen-revenue-flow.md). |
+| `ar_foodics_processing.json` | `ar_foodics_processing` — the **wired** Foodics Processing Flow: `FoodicsProcessingFlowComponent` (real LangGraph) + `ChatInput`/`ChatOutput` (3 nodes / 3 edges). The 13th subflow. See [docs/foodics-processing.md](../docs/foodics-processing.md) and [ADR-0007](../docs/adr/adr-0007-foodics-processing-flow.md). |
 | `ar_fetch_invoices.json` | `ar_fetch_invoices` |
 | `ar_fetch_receipts.json` | `ar_fetch_receipts` |
 | `ar_match_payments.json` | `ar_match_payments` |
@@ -27,15 +28,17 @@ The 12 JSON files here are **LangFlow export skeletons** for the Cosmic AR Agent
 
 ## Import order / `flow_id` resolution
 
-The twelve `RunFlow` nodes in `supervisor.json` reference each subflow by
+The thirteen `RunFlow` nodes in `supervisor.json` reference each subflow by
 `flow_name_selected` (e.g. `ar_fetch_invoices`, `ar_file_intake`,
-`ar_intercompany_sales`, `ar_kitchen_revenue`) with `flow_id_selected=null`,
-which LangFlow resolves at runtime **after** the subflow is imported. So:
+`ar_intercompany_sales`, `ar_kitchen_revenue`, `ar_foodics_processing`) with
+`flow_id_selected=null`, which LangFlow resolves at runtime **after** the
+subflow is imported. So:
 
-1. Import the **twelve subflows first** (the nine placeholders, then wire each to
-   the bundled `ar_common`/`ar_tools` components per the architecture's Flow
-   Diagram; `ar_file_intake.json`, `ar_intercompany_sales.json`, and
-   `ar_kitchen_revenue.json` are already wired — import them as-is).
+1. Import the **thirteen subflows first** (the nine placeholders, then wire each
+   to the bundled `ar_common`/`ar_tools` components per the architecture's Flow
+   Diagram; `ar_file_intake.json`, `ar_intercompany_sales.json`,
+   `ar_kitchen_revenue.json`, and `ar_foodics_processing.json` are already wired
+   — import them as-is).
 2. Import `supervisor.json` **last**, then open it so each `RunFlow` node
    resolves its `flow_id_selected`.
 3. Record the supervisor flow's UUID into `LANGFLOW_ADAPTER_FLOW_IDS` (in

@@ -1,7 +1,7 @@
 """Cosmic AR Agent supervisor component (constitution §8, architecture §5).
 
 The supervisor is the single stateful orchestrator. It owns an explicit LangGraph
-``StateGraph[AgentState]`` and drives the twelve AR subflows, which are exposed to
+``StateGraph[AgentState]`` and drives the thirteen AR subflows, which are exposed to
 it as LangChain tools (one ``RunFlow`` node per subflow on the supervisor flow's
 canvas — see ``cosmic-ar/flows/supervisor.json``). Per §8 the durable,
 checkpointed state is the typed ``AgentState`` (frozen dataclass, immutable
@@ -22,7 +22,7 @@ Responsibilities → LangGraph nodes (architecture §5):
                 subflows). §8 / §2
   - classify  : deterministic intent + doc-type classification; low confidence
                 → ``AR_UNCERTAIN`` (§4 fail-safe) → respond.               §4
-  - route     : map intent → one of the twelve subflow tools.             §5
+  - route     : map intent → one of the thirteen subflow tools.           §5
   - gate      : §19 tier gate; ``read-only``/``auto`` proceed, ``approval``/
                 ``dual-control`` call ``interrupt()`` to pause for a human. §19
   - invoke    : call the selected RunFlow tool inside the §10 retry/backoff
@@ -71,16 +71,17 @@ from lfx.schema import Message
 from components.ar_common.agent_state import AgentState, Approval
 
 # --------------------------------------------------------------------------- #
-#  Constants — the twelve subflows, their tiers (architecture §4), and the
+#  Constants — the thirteen subflows, their tiers (architecture §4), and the
 #  deterministic intent router. Tunables belong in Global Variables (§17) at
 #  build phase; these defaults are the v1 policy.
 # --------------------------------------------------------------------------- #
 
-# The twelve subflows: nine business subflows + ar_file_intake (the File Intake
+# The thirteen subflows: nine business subflows + ar_file_intake (the File Intake
 # Flow, the 10th — ADR-0004) + ar_intercompany_sales (the Intercompany Sales
 # Flow, the 11th — ADR-0005) + ar_kitchen_revenue (the Cosmic Kitchen Revenue
-# Flow, the 12th — ADR-0006; architecture §4's "Nine reusable subflows" is
-# amended to "Twelve" by those ADRs).
+# Flow, the 12th — ADR-0006) + ar_foodics_processing (the Foodics Processing
+# Flow, the 13th — ADR-0007; architecture §4's "Nine reusable subflows" is
+# amended to "Thirteen" by those ADRs).
 SUBFLOWS: tuple[str, ...] = (
     "ar_fetch_invoices",
     "ar_fetch_receipts",
@@ -94,6 +95,7 @@ SUBFLOWS: tuple[str, ...] = (
     "ar_file_intake",
     "ar_intercompany_sales",
     "ar_kitchen_revenue",
+    "ar_foodics_processing",
 )
 
 # §19 tiers. read-only/auto proceed unattended; approval/dual-control pause.
@@ -110,6 +112,7 @@ TIER: dict[str, str] = {
     "ar_file_intake": "read-only",  # parses uploads → DocumentManifest; no mutation (ADR-0004)
     "ar_intercompany_sales": "approval",  # invoice production intent, but v1 is draft-only — gate dormant (ADR-0005)
     "ar_kitchen_revenue": "read-only",  # computes + reports Revenue/Collections/Expenses/Net Receivable/Net Payable; no posting (ADR-0006)
+    "ar_foodics_processing": "approval",  # invoice production intent, but v1 is compute + draft only — gate dormant (ADR-0007)
 }
 
 # Intent → subflow routing keywords (deterministic v1 classifier).
@@ -143,6 +146,16 @@ INTENT_KEYWORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("ar_kitchen_revenue", ("kitchen revenue", "kitchen sales", "menu sales",
                             "daily sales", "check payment", "marriott backup",
                             "net receivable", "net payable", "kitchen")),
+    # Foodics Processing: Foodics Order + Order Items + Order Payments (export
+    # files or API) → consolidated dataset + pivot + payment-type breakdown +
+    # discount rules + Zoho Books upload format + draft InvoiceData per order +
+    # Validation/Exception reports. v1 is compute + draft only (no posting) —
+    # ADR-0007. Multi-word / long keywords score 1.0 and clear MIN_CONFIDENCE.
+    ("ar_foodics_processing", ("foodics processing", "foodics order",
+                               "order items", "order payments",
+                               "consolidated workbook", "refresh pivot",
+                               "payment type", "discount rules", "sheet3",
+                               "zoho upload", "zoho upload format", "foodics")),
 )
 
 # §4 fail-safe threshold for the deterministic classifier.
