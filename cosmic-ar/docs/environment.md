@@ -39,6 +39,31 @@ See constitution §16/§17/§18.
 > These are referenced from `SecretStrInput(..., load_from_db=True)` so only the
 > variable *name* is stored in the flow JSON — never the secret value (§16).
 
+## LangFlow Global Variables (build-phase, non-secret — §17)
+
+The Calculation Flow (`ar_calculation`) computes its nine figures from a
+declarative ruleset whose rates are **tunables** (§17). v1 reads concrete rate
+values from the payload's `parameters` block; the rules reference them as
+`parameters.<rate>`. The forward path is to resolve those rates from **plain
+(non-secret) LangFlow Global Variables** at build time via the engine's
+`$GV:NAME` token (ADR-0008 §9). The repo only evidences
+`SecretStrInput(load_from_db=True)` for secrets today — there is no plain-number
+Global Variable input type wired — so these are documented build-phase vars,
+not yet wired.
+
+| Variable | Used by | Notes |
+|----------|---------|-------|
+| `VAT_RATE` | `ar_calculation` (via the rules `parameters.vat_rate`) | VAT rate as a decimal (`0.15` = 15%) — non-secret, plain |
+| `MUNICIPALITY_TAX_RATE` | `ar_calculation` (via `parameters.municipality_rate`) | Municipality tax rate, decimal — non-secret, plain |
+| `ROYALTY_RATE` | `ar_calculation` (via `parameters.royalty_rate`) | Royalty rate, decimal — non-secret, plain |
+| `DISCOUNT_RATE` | `ar_calculation` (via `parameters.discount_rate`) | Discount rate, decimal — non-secret, plain |
+
+> These are **not** secrets (§16) and so do **not** use `SecretStrInput`; they
+> are §17 tunables. A missing rate in the payload defaults to `"0.00"` + an
+> `AR_VALIDATION_MISSING_RATE` warning (not a hard fail), so a partial payload
+> still produces reviewable zeroed figures. Wiring the `$GV:` injection is
+> build-phase (see [calculation.md](calculation.md)).
+
 ## Build-phase wiring summary
 
 1. Add `AR_AGENT_DB_*` to the `postgres` service environment in `docker-compose.yml`.

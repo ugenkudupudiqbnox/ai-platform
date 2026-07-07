@@ -9,6 +9,7 @@
 | [0005](adr-0005-intercompany-sales-flow.md) | Intercompany Sales Flow: 11th subflow, KOT Excel → draft InvoiceData per buyer, compute + draft only | Accepted |
 | [0006](adr-0006-kitchen-revenue-flow.md) | Cosmic Kitchen Revenue Flow: 12th subflow, four sheets → Revenue/Collections/Expenses/Net Receivable/Net Payable, read-only compute + report | Accepted |
 | [0007](adr-0007-foodics-processing-flow.md) | Foodics Processing Flow: 13th subflow, Order + Order Items + Order Payments → consolidated/pivot/payment-type/discounts/Zoho upload format/draft InvoiceData per order, compute + draft only | Accepted |
+| [0008](adr-0008-calculation-flow.md) | Calculation Flow: 14th subflow, validated JSON → Revenue/Discount/VAT/Municipality Tax/Royalty/Collections/Expenses/Net Receivable/Net Payable via the Business Rule Engine (§55 waiver — figures only), read-only compute + report | Accepted |
 | [adr-000-template.md](adr-000-template.md) | Template for new ADRs | — |
 
 ## When to write an ADR
