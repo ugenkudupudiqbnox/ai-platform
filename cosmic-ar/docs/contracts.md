@@ -910,27 +910,57 @@ requires a written waiver + ADR (per the authority note above).
   against LangFlow 1.10.1 / `lfx` 1.10.1: every routed subflow now populates
   `subflows_invoked` (no `AR_NOT_FOUND`); `ar_approval` and `ar_issue_invoice`
   run end-to-end (`pending_approval` / `AR_APPROVAL_REQUIRED`). The remaining
-  Flow-as-Tool live-interaction gap is the input-binding caveat below; the
+  Flow-as-Tool live-interaction gap — the input-binding caveat below — is now
+  also resolved (see `V1-FLOW-TWEAK-DATA` / `V1-RUNFLOW-TOOL-INPUT`); the
   LangGraph §19 resume path (`Command(resume=approval_ref)`) is still
   build-phase.
-- **`V1-FLOW-TWEAK-DATA`** — when the supervisor invokes a `RunFlow` subflow as
-  a tool, `lfx` derives an `InputSchema` from the subflow's input nodes and the
-  supervisor passes the user's chat message as the tool input. For 4 of 9
-  subflows (`ar_calculation`, `ar_kitchen_revenue`, `ar_file_intake`,
-  `ar_audit`) that schema types `flow_tweak_data` as a nested dict
-  (`InnerModel`), so the bare chat string fails pydantic validation and the
-  subflow returns `AR_UNEXPECTED`
-  ("subflow <flow> failed: … InputSchema / flow_tweak_data / Input should be a
-  valid dictionary or instance of InnerModel"). The other routed subflows that
-  accept the string (`ar_approval`, `ar_issue_invoice`) run end-to-end. Root
-  cause is in how `lfx` builds the RunFlow tool `InputSchema.flow_tweak_data`
-  from each subflow's input fields (a per-subflow input-schema / tool-binding
-  concern), not in the supervisor routing (which now resolves). Fix is deferred
-  to the build-phase live-test pass: it is a coordinated subflow-input /
-  tool-binding change (shape the supervisor's tool call to pass a dict, or
-  narrow the affected subflows' input schemas to accept the chat string), not a
-  one-line supervisor patch. All nine subflows still run standalone (HTTP 200)
-  independently of this caveat.
+- **`V1-FLOW-TWEAK-DATA`** (resolved) — when the supervisor invokes a `RunFlow`
+  subflow as a tool, `lfx` derives an `InputSchema` whose sole required field is
+  `flow_tweak_data` (an `InnerModel` whose one sub-field is named after the
+  subflow's `ChatInput` node, e.g. `ChatInput-ar001~input_value`, type `str`).
+  The old `_call_tool` called `tool.invoke({"input_value": …})` (sync, wrong
+  shape); the `RunFlow` tools are async-only `StructuredTool`s, so sync `invoke`
+  raised `NotImplementedError` / pydantic `ValidationError` for all 9 subflows,
+  surfaced as `AR_UNEXPECTED` ("subflow <flow> failed: … InputSchema /
+  flow_tweak_data"). Fix: `_call_tool` now derives the sub-field dynamically from
+  `tool.args_schema.model_fields["flow_tweak_data"].annotation` and invokes the
+  tool async via a sync bridge (`asyncio.run(tool.ainvoke({"flow_tweak_data":
+  {<sub-field>: user_input}}))`). The bridge is sync because the supervisor's
+  output method runs sync under `lfx` (`asyncio.to_thread`, no running loop in
+  the worker thread) and `lfx`'s custom-component loader only exposes SYNC
+  module-level free functions to the component's methods (`ast.FunctionDef`
+  filter in `lfx/custom/validate.py` — an `async def` here is silently dropped
+  from the method globals → `NameError`). Verified live on LangFlow 1.10.1 /
+  `lfx` 1.10.1: the `flow_tweak_data` `AR_UNEXPECTED` is gone; every routed
+  subflow now executes (returns its own `AR_*` envelope, not the tool-invocation
+  error).
+- **`V1-RUNFLOW-TOOL-INPUT`** (resolved) — the deeper half of Flow-as-Tool live
+  interaction. Even with the correct `flow_tweak_data` shape, the user's input
+  did not reach the subflow (it ran with an empty `ChatInput` →
+  `AR_VALIDATION` "payload JSON parse error"). Root cause is two `lfx` 1.10.1
+  behaviours: (1) the `RunFlow` tool's dynamic output resolver is built as
+  `MethodType(_dynamic_resolver, self)` bound to the **original** `RunFlow`
+  component at tool-build time (`lfx/base/tools/run_flow.py
+  _register_flow_output_method`); (2) at invoke time `lfx`'s `output_function`
+  deepcopies that component and calls `comp.set(flow_tweak_data=…)` on the
+  **copy** (`lfx/base/tools/component_tool.py`), but the resolver still runs on
+  the original — so the per-call `flow_tweak_data` is ignored and results cache
+  (`_last_run_outputs`) on the original. Fix: `_call_tool` recovers the original
+  `RunFlowBaseComponent` from the tool's `coroutine`/`func` closure cells
+  (`_extract_runflow_component`), sets this call's `flow_tweak_data` on it
+  (`comp.set(flow_tweak_data=InnerModel(**{<sub-field>: user_input}))`) and
+  resets `comp._last_run_outputs = None` before invoking, so the resolver reads
+  fresh input. This is race-free because the supervisor runs one subflow at a
+  time (sync `graph.invoke`). Verified live: `ar_calculation` runs end-to-end
+  through the supervisor → `AR_OK` with the 9 signed-2dp totals + 3 audit
+  checkpoints + `subflows_invoked=["ar_calculation"]`. The remaining subflows
+  (`ar_audit`/`ar_file_intake`/`ar_kitchen_revenue`) now execute and return
+  their own subflow-internal validation errors (missing JSON request / files),
+  not the tool-invocation error. The supervisor's top-level `totals`
+  (`matched`/`outstanding`/`posted`) stay `"0.00"` because `ar_calculation`
+  reports its figures under `data.calculation_result.totals`, not
+  `data.totals` — the cross-flow run-metadata merge is the deferred
+  `V1-ENVELOPE-META` reshape, not a regression.
 
 For the historical build-phase caveat set carried by the individual flows (Zoho
 transport stub, PDF/Excel render-ready specs, InMemorySaver non-durability,

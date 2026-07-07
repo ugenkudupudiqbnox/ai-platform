@@ -51,6 +51,7 @@ returns an ``AR_UNEXPECTED`` envelope.
 
 from __future__ import annotations
 
+import asyncio
 import dataclasses
 import json
 import re
@@ -508,12 +509,123 @@ def _is_transient(exc: BaseException) -> bool:
     return False
 
 
-def _call_tool(tool: Any, user_input: str) -> str:
-    """Invoke a LangChain BaseTool and coerce its result to a string."""
+def _flow_tweak_schema(tool: Any) -> Optional[tuple[Any, str]]:
+    """Return ``(InnerModel class, sub-field name)`` for a RunFlow tool's
+    ``flow_tweak_data`` input, or ``None`` if the tool has no ``flow_tweak_data``.
+
+    lfx 1.10.1 RunFlow tools expose ``args_schema = InputSchema`` with a single
+    REQUIRED field ``flow_tweak_data`` whose annotation is an ``InnerModel``
+    pydantic model; ``InnerModel``'s one sub-field is named after the subflow's
+    ChatInput node (e.g. ``"ChatInput-ar001~input_value"``, type str). There is
+    NO top-level ``input_value``. The sub-field name varies per subflow, so it is
+    derived dynamically from ``tool.args_schema`` (V1-FLOW-TWEAK-DATA).
+    """
+    schema = getattr(tool, "args_schema", None)
+    fields = getattr(schema, "model_fields", None)
+    if not (isinstance(fields, dict) and "flow_tweak_data" in fields):
+        return None
+    inner = getattr(fields["flow_tweak_data"], "annotation", None)
+    inner_fields = getattr(inner, "model_fields", None)
+    if not (isinstance(inner_fields, dict) and inner_fields):
+        return None
+    return inner, next(iter(inner_fields))  # ("ChatInput-ar001~input_value",)
+
+
+def _build_tool_payload(tool: Any, user_input: str) -> dict[str, Any]:
+    """Build the ainvoke payload for a RunFlow StructuredTool (V1-FLOW-TWEAK-DATA).
+
+    The correct ainvoke shape is ``{"flow_tweak_data": {<sub-field>: user_input}}``
+    (no top-level ``input_value``). Tools without a ``flow_tweak_data`` field fall
+    back to ``{"input_value": ...}``.
+    """
+    ft = _flow_tweak_schema(tool)
+    if ft is not None:
+        _inner_cls, sub_field = ft
+        return {"flow_tweak_data": {sub_field: user_input}}
+    return {"input_value": user_input}
+
+
+def _extract_runflow_component(tool: Any) -> Optional[Any]:
+    """Recover the ORIGINAL RunFlow component a RunFlow tool wraps (V1-RUNFLOW-TOOL-INPUT).
+
+    lfx 1.10.1's RunFlow tool builds its dynamic output resolver as
+    ``MethodType(_dynamic_resolver, self)`` bound to the ORIGINAL RunFlow component
+    at tool-build time (lfx/base/tools/run_flow.py ``_register_flow_output_method``).
+    At invoke time lfx's ``output_function`` deepcopies that component and calls
+    ``comp.set(flow_tweak_data=...)`` on the COPY (lfx/base/tools/component_tool.py),
+    but the resolver still runs on the ORIGINAL — so the per-call ``flow_tweak_data``
+    is ignored and results cache (``_last_run_outputs``) on the original. To pass
+    per-call input to the subflow we must set ``flow_tweak_data`` on the ORIGINAL
+    and reset its run cache. This walks the StructuredTool's ``coroutine``/``func``
+    closure cells to find that original ``RunFlowBaseComponent``. Returns ``None``
+    if not found (graceful — ``ainvoke`` still runs, input may not reach subflow).
+    """
     try:
-        result = tool.invoke({"input_value": user_input})
-    except (TypeError, ValueError):
-        result = tool.invoke(user_input)
+        from lfx.base.tools.run_flow import RunFlowBaseComponent
+    except Exception:  # noqa: BLE001 — lfx layout drift → graceful fallback
+        return None
+    seen: set[int] = set()
+
+    def _walk(fn: Any, depth: int = 0) -> Optional[Any]:
+        if fn is None or id(fn) in seen or depth > 6:
+            return None
+        seen.add(id(fn))
+        for cell in (getattr(fn, "__closure__", None) or ()):
+            try:
+                v = cell.cell_contents
+            except ValueError:  # empty cell
+                continue
+            if isinstance(v, RunFlowBaseComponent):
+                return v
+            if callable(v):
+                r = _walk(v, depth + 1)
+                if r is not None:
+                    return r
+        return None
+
+    for attr in ("coroutine", "func"):
+        fn = getattr(tool, attr, None)
+        if callable(fn):
+            r = _walk(fn)
+            if r is not None:
+                return r
+    return None
+
+
+def _call_tool(tool: Any, user_input: str) -> str:
+    """Invoke an async-only RunFlow StructuredTool via a sync bridge (V1-FLOW-TWEAK-DATA).
+
+    Two lfx 1.10.1 constraints shape this:
+
+    1. RunFlow tools are async-only ``StructuredTools`` (sync ``invoke`` raises
+       ``NotImplementedError``). The supervisor's output method runs SYNC under
+       lfx (dispatched via ``asyncio.to_thread`` on a worker thread with NO running
+       event loop), and lfx's custom-component loader only exposes SYNC module-level
+       free functions to the component's methods — it filters on
+       ``ast.FunctionDef`` (lfx/custom/validate.py), not ``ast.AsyncFunctionDef``,
+       so the invoke chain MUST stay sync. We therefore run ``tool.ainvoke`` on a
+       fresh loop via ``asyncio.run`` (safe — no running loop in this worker thread).
+
+    2. lfx binds the RunFlow tool's output resolver to the ORIGINAL component, so
+       ``flow_tweak_data`` set by ``tool.ainvoke`` (on the per-call deepcopy) never
+       reaches the subflow and results cache on the original (V1-RUNFLOW-TOOL-INPUT).
+       We set this call's ``flow_tweak_data`` on the ORIGINAL component and reset its
+       ``_last_run_outputs`` cache before invoking, so the resolver reads fresh input.
+       The supervisor runs one subflow at a time (sync graph), so mutating the shared
+       original is race-free.
+    """
+    payload = _build_tool_payload(tool, user_input)
+    ft = _flow_tweak_schema(tool)
+    if ft is not None:
+        inner_cls, sub_field = ft
+        comp = _extract_runflow_component(tool)
+        if comp is not None:
+            try:
+                comp.set(flow_tweak_data=inner_cls(**{sub_field: user_input}))
+                comp._last_run_outputs = None  # type: ignore[attr-defined]  # force fresh run
+            except Exception:  # noqa: BLE001 — best-effort; ainvoke still runs
+                pass
+    result = asyncio.run(tool.ainvoke(payload))
     return _to_str(result)
 
 
@@ -521,7 +633,10 @@ def _backoff_sleep(attempt: int) -> None:
     """§10 exponential backoff with ±25% jitter, capped at 30s.
 
     Uses attempt-parity jitter (no hidden randomness) so resume determinism (§8)
-    holds: the same retry sequence reproduces the same waits.
+    holds: the same retry sequence reproduces the same waits. ``time.sleep`` is
+    safe here: the supervisor runs SYNC (lfx dispatches the output method via
+    ``asyncio.to_thread`` on a worker thread with no running event loop), so a
+    blocking sleep cannot stall any loop.
     """
     delay = min(BACKOFF_CAP_S, BACKOFF_BASE_S * (2 ** (attempt - 1)))
     jitter = delay * 0.25
