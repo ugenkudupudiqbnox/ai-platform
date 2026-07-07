@@ -3264,6 +3264,169 @@
           "y": 1900
         },
         "type": "genericNode"
+      },
+      {
+        "data": {
+          "description": "Runs the ar_audit subflow as a tool for the AR supervisor (Flow-as-Tool, architecture §5).",
+          "display_name": "Run Flow",
+          "id": "RunFlow-ar16",
+          "node": {
+            "base_classes": [
+              "Tool"
+            ],
+            "beta": false,
+            "conditional_paths": [],
+            "custom_fields": {},
+            "description": "Runs the ar_audit subflow as a tool for the AR supervisor (Flow-as-Tool, architecture §5).",
+            "display_name": "Run Flow",
+            "documentation": "",
+            "edited": false,
+            "field_order": [
+              "code",
+              "_type",
+              "flow_name_selected",
+              "flow_id_selected",
+              "session_id",
+              "cache_flow"
+            ],
+            "frozen": false,
+            "icon": "Workflow",
+            "legacy": false,
+            "lf_version": "1.10.1",
+            "metadata": {
+              "module": "lfx.components.flow_controls.run_flow.RunFlowComponent"
+            },
+            "output_types": [],
+            "outputs": [
+              {
+                "allows_loop": false,
+                "cache": true,
+                "display_name": "Toolset",
+                "group_outputs": false,
+                "method": "to_toolkit",
+                "name": "component_as_tool",
+                "selected": "Tool",
+                "tool_mode": true,
+                "types": [
+                  "Tool"
+                ],
+                "value": "__UNDEFINED__"
+              }
+            ],
+            "pinned": false,
+            "template": {
+              "_type": "RunFlow",
+              "code": {
+                "_input_type": "CodeInput",
+                "advanced": true,
+                "dynamic": true,
+                "fileTypes": [],
+                "file_path": "",
+                "info": "",
+                "list": false,
+                "load_from_db": false,
+                "multiline": true,
+                "name": "code",
+                "password": false,
+                "placeholder": "",
+                "required": true,
+                "show": true,
+                "title_case": false,
+                "trace_as_metadata": true,
+                "type": "code",
+                "value": "from copy import deepcopy\nfrom datetime import datetime\nfrom typing import Any\n\nfrom lfx.base.tools.run_flow import RunFlowBaseComponent\nfrom lfx.log.logger import logger\nfrom lfx.schema.data import Data\nfrom lfx.schema.dotdict import dotdict\n\n\nclass RunFlowComponent(RunFlowBaseComponent):\n    display_name = \"Run Flow\"\n    description = (\n        \"Executes another flow from within the same project. Can also be used as a tool for agents.\"\n        \" \\n **Select a Flow to use the tool mode**\"\n    )\n    documentation: str = \"https://docs.langflow.org/run-flow\"\n    beta = True\n    name = \"RunFlow\"\n    icon = \"Workflow\"\n\n    # Keep the concrete class templates detached from the base-class templates;\n    # Component.__init__ still makes the per-instance copies used at runtime.\n    inputs = deepcopy(RunFlowBaseComponent.get_base_inputs())\n    outputs = deepcopy(RunFlowBaseComponent.get_base_outputs())\n\n    async def update_build_config(\n        self,\n        build_config: dotdict,\n        field_value: Any,\n        field_name: str | None = None,\n    ):\n        missing_keys = [key for key in self.default_keys if key not in build_config]\n        for key in missing_keys:  # TODO: create a defaults dict to avoid hardcoding the defaults here\n            if key == \"flow_name_selected\":\n                build_config[key] = {\"options\": [], \"options_metadata\": [], \"value\": None}\n            elif key == \"flow_id_selected\":\n                build_config[key] = {\"value\": None}\n            elif key == \"cache_flow\":\n                build_config[key] = {\"value\": False}\n            else:\n                build_config[key] = {}\n        if field_name == \"flow_name_selected\" and (build_config.get(\"is_refresh\", False) or field_value is None):\n            # refresh button was clicked or componented was initialized, so list the flows\n            options: list[str] = await self.alist_flows_by_flow_folder()\n            build_config[\"flow_name_selected\"][\"options\"] = [flow.data[\"name\"] for flow in options]\n            build_config[\"flow_name_selected\"][\"options_metadata\"] = []\n            for flow in options:\n                # populate options_metadata\n                build_config[\"flow_name_selected\"][\"options_metadata\"].append(\n                    {\"id\": flow.data[\"id\"], \"updated_at\": flow.data[\"updated_at\"]}\n                )\n                # update selected flow if it is stale\n                if str(flow.data[\"id\"]) == self.flow_id_selected:\n                    await self.check_and_update_stale_flow(flow, build_config)\n        elif field_name in {\"flow_name_selected\", \"flow_id_selected\"} and field_value is not None:\n            # flow was selected by name or id, so get the flow and update the bcfg\n            try:\n                # derive flow id if the field_name is flow_name_selected\n                build_config[\"flow_id_selected\"][\"value\"] = (\n                    self.get_selected_flow_meta(build_config, \"id\") or build_config[\"flow_id_selected\"][\"value\"]\n                )\n                updated_at = self.get_selected_flow_meta(build_config, \"updated_at\")\n                await self.load_graph_and_update_cfg(\n                    build_config, build_config[\"flow_id_selected\"][\"value\"], updated_at\n                )\n            except Exception as e:\n                msg = f\"Error building graph for flow {field_value}\"\n                await logger.aexception(msg)\n                raise RuntimeError(msg) from e\n\n        return build_config\n\n    def get_selected_flow_meta(self, build_config: dotdict, field: str) -> dict:\n        \"\"\"Get the selected flow's metadata from the build config.\"\"\"\n        return build_config.get(\"flow_name_selected\", {}).get(\"selected_metadata\", {}).get(field)\n\n    async def load_graph_and_update_cfg(\n        self,\n        build_config: dotdict,\n        flow_id: str,\n        updated_at: str | datetime,\n    ) -> None:\n        \"\"\"Load a flow's graph and update the build config.\"\"\"\n        graph = await self.get_graph(\n            flow_id_selected=flow_id,\n            updated_at=self.get_str_isots(updated_at),\n        )\n        self.update_build_config_from_graph(build_config, graph)\n\n    def should_update_stale_flow(self, flow: Data, build_config: dotdict) -> bool:\n        \"\"\"Check if the flow should be updated.\"\"\"\n        return (\n            (updated_at := self.get_str_isots(flow.data[\"updated_at\"]))  # true updated_at date just fetched from db\n            and (stale_at := self.get_selected_flow_meta(build_config, \"updated_at\"))  # outdated date in bcfg\n            and self._parse_timestamp(updated_at) > self._parse_timestamp(stale_at)  # stale flow condition\n        )\n\n    async def check_and_update_stale_flow(self, flow: Data, build_config: dotdict) -> None:\n        \"\"\"Check if the flow should be updated and update it if necessary.\"\"\"\n        # TODO: improve contract/return value\n        if self.should_update_stale_flow(flow, build_config):\n            await self.load_graph_and_update_cfg(\n                build_config,\n                flow.data[\"id\"],\n                flow.data[\"updated_at\"],\n            )\n\n    def get_str_isots(self, date: datetime | str) -> str:\n        \"\"\"Get a string timestamp from a datetime or string.\"\"\"\n        return date.isoformat() if hasattr(date, \"isoformat\") else date\n"
+              },
+              "flow_name_selected": {
+                "_input_type": "DropdownInput",
+                "advanced": false,
+                "display_name": "Flow Name",
+                "dynamic": false,
+                "info": "The name of the subflow to run.",
+                "input_types": [],
+                "list": false,
+                "load_from_db": false,
+                "name": "flow_name_selected",
+                "placeholder": "",
+                "required": true,
+                "show": true,
+                "title_case": false,
+                "trace_as_input": false,
+                "trace_as_metadata": true,
+                "type": "str",
+                "value": "ar_audit"
+              },
+              "flow_id_selected": {
+                "_input_type": "StrInput",
+                "advanced": false,
+                "display_name": "Flow ID",
+                "dynamic": false,
+                "info": "Resolved at runtime after the subflow is imported.",
+                "input_types": [],
+                "list": false,
+                "load_from_db": false,
+                "name": "flow_id_selected",
+                "placeholder": "",
+                "required": false,
+                "show": false,
+                "title_case": false,
+                "trace_as_input": false,
+                "trace_as_metadata": true,
+                "type": "str",
+                "value": null
+              },
+              "session_id": {
+                "_input_type": "MessageTextInput",
+                "advanced": true,
+                "display_name": "Session ID",
+                "dynamic": false,
+                "info": "The session ID to run the flow in.",
+                "input_types": [],
+                "list": false,
+                "load_from_db": false,
+                "name": "session_id",
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "trace_as_input": false,
+                "trace_as_metadata": true,
+                "type": "str",
+                "value": ""
+              },
+              "cache_flow": {
+                "_input_type": "BoolInput",
+                "advanced": true,
+                "display_name": "Cache Flow",
+                "dynamic": false,
+                "info": "Whether to cache the selected flow.",
+                "input_types": [],
+                "list": false,
+                "load_from_db": false,
+                "name": "cache_flow",
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "trace_as_input": false,
+                "trace_as_metadata": true,
+                "type": "bool",
+                "value": false
+              }
+            }
+          },
+          "selected_output": "component_as_tool",
+          "type": "RunFlow"
+        },
+        "id": "RunFlow-ar16",
+        "measured": {
+          "height": 200,
+          "width": 320
+        },
+        "position": {
+          "x": 520,
+          "y": 2100
+        },
+        "type": "genericNode"
       }
     ],
     "edges": [
@@ -3744,6 +3907,34 @@
         "target": "SupervisorAgentComponent-ar001",
         "targetHandle": "{œfieldNameœ:œtoolsœ,œidœ:œSupervisorAgentComponent-ar001œ,œinputTypesœ:[œToolœ],œtypeœ:œsourceœ}",
         "id": "e-runflow-ar15-to-tools"
+      },
+      {
+        "animated": false,
+        "className": "",
+        "data": {
+          "sourceHandle": {
+            "dataType": "RunFlow",
+            "id": "RunFlow-ar16",
+            "name": "component_as_tool",
+            "output_types": [
+              "Tool"
+            ]
+          },
+          "targetHandle": {
+            "fieldName": "tools",
+            "id": "SupervisorAgentComponent-ar001",
+            "inputTypes": [
+              "Tool"
+            ],
+            "type": "source"
+          }
+        },
+        "selected": false,
+        "source": "RunFlow-ar16",
+        "sourceHandle": "{œdataTypeœ:œRunFlowœ,œidœ:œRunFlow-ar16œ,œnameœ:œapi_build_toolœ,œoutput_typesœ:[œToolœ]}",
+        "target": "SupervisorAgentComponent-ar001",
+        "targetHandle": "{œfieldNameœ:œtoolsœ,œidœ:œSupervisorAgentComponent-ar001œ,œinputTypesœ:[œToolœ],œtypeœ:œsourceœ}",
+        "id": "e-runflow-ar16-to-tools"
       }
     ],
     "viewport": {

@@ -295,7 +295,7 @@ in sync (hand-rolled stdlib, no `jsonschema` dep).
 6. **Adapter upload-result rendering** — surface `data.batch_summary` +
    per-invoice `ZohoUploadResult` (success/duplicate/rolled-back) readably in
    LibreChat.
-7. **Import the fifteen subflows first** (incl. the now-wired
+7. **Import the sixteen subflows first** (incl. the now-wired
    `ar_issue_invoice.json`), then `supervisor.json`; open the supervisor flow so
    the `RunFlow(ar_issue_invoice)` resolves `flow_id_selected`;
    `docker compose restart langflow`; `docker exec langflow python -m lfx

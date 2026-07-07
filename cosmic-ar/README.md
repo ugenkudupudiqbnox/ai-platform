@@ -11,7 +11,7 @@ runtime bundles. **No business logic is implemented here yet** — see
 - [Project Constitution](../docs/cosmic-ar-constitution.md) — the binding
   engineering standards (state §8, error handling §9, retry §10, checkpoint §11,
   envelope §14, security §16, human approval §19, AP extension §20).
-- [Architecture](../docs/cosmic-ar-architecture.md) — supervisor + fifteen
+- [Architecture](../docs/cosmic-ar-architecture.md) — supervisor + sixteen
   subflows + shared components + LangGraph state + checkpoint/retry/error
   designs, with mermaid diagrams.
 
@@ -53,7 +53,7 @@ logic.
 
 ### Flow import files
 
-[`flows/`](flows/) holds 16 LangFlow export skeletons: the **wired** supervisor
+[`flows/`](flows/) holds 17 LangFlow export skeletons: the **wired** supervisor
 flow, the **wired** File Intake Flow (`ar_file_intake`, the 10th subflow — see
 [docs/file-intake.md](docs/file-intake.md) and
 [ADR-0004](docs/adr/adr-0004-file-intake-flow.md)), the **wired** Intercompany
@@ -77,7 +77,9 @@ Approval Flow (`ar_approval`, the 9th subflow — see
 [ADR-0010](docs/adr/adr-0010-approval-flow.md)), the **wired** Zoho Upload
 Flow (`ar_issue_invoice`, the 7th subflow — see
 [docs/zoho-upload-flow.md](docs/zoho-upload-flow.md) and
-[ADR-0011](docs/adr/adr-0011-zoho-upload-flow.md)), and seven placeholder
+[ADR-0011](docs/adr/adr-0011-zoho-upload-flow.md)), the **wired** Audit Flow
+(`ar_audit`, the 16th subflow — see [docs/audit-flow.md](docs/audit-flow.md) and
+[ADR-0012](docs/adr/adr-0012-audit-flow.md)), and seven placeholder
 business subflows. Flow **definitions** live in the LangFlow Postgres DB
 (constitution §7), not on disk — these JSONs are import artifacts, not
 auto-loaded.
@@ -126,7 +128,17 @@ per create + enriched per-invoice view with `rolled_back` + `WorkflowState` +
 audit per create/rollback (§13); §1 `approval_ref` required at the boundary, no
 in-flow interrupt; deterministic stub transport v1 — real `ZohoBooksARTool`
 POST/DELETE build-phase); see [docs/zoho-upload-flow.md](docs/zoho-upload-flow.md)
-and [ADR-0011](docs/adr/adr-0011-zoho-upload-flow.md). Remaining build-phase
+and [ADR-0011](docs/adr/adr-0011-zoho-upload-flow.md). The **Audit Flow** is
+implemented (read-only, no §1 gate — real LangGraph + wired canvas + a
+validated-JSON `AuditRequest` collecting the run's execution history/input
+files/validation reports/calculation results/invoices/approvals/Zoho upload
+results/execution time/errors/warnings → synthesize an immutable §13 audit log
+(append-only AuditRecords, one per artifact + a terminal `audit.summary`) +
+`ExecutionSummary` + `WorkflowState`; pure compute, no transport — Postgres/
+Langfuse persistence build-phase; the 16th subflow, count Fifteen→Sixteen,
+wired into the supervisor via `RunFlow-ar16`); see
+[docs/audit-flow.md](docs/audit-flow.md) and
+[ADR-0012](docs/adr/adr-0012-audit-flow.md). Remaining build-phase
 work (not done here):
 
 1. ~~Implement the LangGraph `StateGraph[AgentState]` + checkpointer in
@@ -140,15 +152,16 @@ work (not done here):
    subflow), the Intercompany Sales Flow (11th subflow), the Cosmic Kitchen
    Revenue Flow (12th subflow), the Foodics Processing Flow (13th subflow), the
    Calculation Flow (14th subflow), the Invoice Generation Flow (15th subflow),
-   the Human Approval Flow (9th subflow), and the Zoho Upload Flow (7th subflow)
+   the Human Approval Flow (9th subflow), the Zoho Upload Flow (7th subflow),
+   and the Audit Flow (16th subflow)
    are done; seven business subflows remain.
 5. Wire the seven business subflows in the LangFlow UI and import their real
    flow JSONs (the seven skeletons here are still placeholders; `supervisor.json`,
    `ar_file_intake.json`, `ar_intercompany_sales.json`,
    `ar_kitchen_revenue.json`, `ar_foodics_processing.json`,
-   `ar_calculation.json`, `ar_invoice_generation.json`, `ar_approval.json`, and
-   `ar_issue_invoice.json` are wired — import the fifteen subflows first, then
-   the supervisor, per [flows/README.md](flows/README.md)).
+   `ar_calculation.json`, `ar_invoice_generation.json`, `ar_approval.json`,
+   `ar_issue_invoice.json`, and `ar_audit.json` are wired — import the sixteen
+   subflows first, then the supervisor, per [flows/README.md](flows/README.md)).
 6. Provision the `ar_agent` Postgres DB and swap `InMemorySaver` →
    `langgraph-checkpoint-postgres` (durable resume — see build-phase
    integration below). The File Intake Flow's `InMemorySaver` swaps for free
@@ -217,6 +230,7 @@ python3 -c "import json; json.load(open('cosmic-ar/flows/ar_calculation.json'))"
 python3 -c "import json; json.load(open('cosmic-ar/flows/ar_invoice_generation.json'))"
 python3 -c "import json; json.load(open('cosmic-ar/flows/ar_approval.json'))"
 python3 -c "import json; json.load(open('cosmic-ar/flows/ar_issue_invoice.json'))"
+python3 -c "import json; json.load(open('cosmic-ar/flows/ar_audit.json'))"
 bash scripts/file-intake.selftest.sh   # 86 pure-function checks (file intake)
 bash scripts/intercompany-sales.selftest.sh   # 135 pure-function checks (intercompany sales)
 bash scripts/kitchen-revenue.selftest.sh   # 199 pure-function checks (kitchen revenue)
@@ -226,9 +240,10 @@ bash scripts/calculation.selftest.sh   # 112 pure-function checks (calculation f
 bash scripts/invoice-generation.selftest.sh   # 186 pure-function + end-to-end checks (invoice generation flow)
 bash scripts/approval-flow.selftest.sh   # 158 pure-function + end-to-end pause/resume checks (human approval flow)
 bash scripts/zoho-upload-flow.selftest.sh   # 162 pure-function + end-to-end upload/retry/rollback checks (zoho upload flow)
-shellcheck -x docker/postgres/init/02-ar-agent-db.sh scripts/adapter.selftest.sh scripts/file-intake.selftest.sh scripts/intercompany-sales.selftest.sh scripts/kitchen-revenue.selftest.sh scripts/foodics-processing.selftest.sh scripts/business-rule-engine.selftest.sh scripts/calculation.selftest.sh scripts/invoice-generation.selftest.sh scripts/approval-flow.selftest.sh scripts/zoho-upload-flow.selftest.sh
+bash scripts/audit-flow.selftest.sh   # 180 pure-function + end-to-end audit checks (audit flow)
+shellcheck -x docker/postgres/init/02-ar-agent-db.sh scripts/adapter.selftest.sh scripts/file-intake.selftest.sh scripts/intercompany-sales.selftest.sh scripts/kitchen-revenue.selftest.sh scripts/foodics-processing.selftest.sh scripts/business-rule-engine.selftest.sh scripts/calculation.selftest.sh scripts/invoice-generation.selftest.sh scripts/approval-flow.selftest.sh scripts/zoho-upload-flow.selftest.sh scripts/audit-flow.selftest.sh
 make validate
-make test        # adapter.selftest.sh (43) + file-intake.selftest.sh (86) + intercompany-sales.selftest.sh (135) + kitchen-revenue.selftest.sh (199) + foodics-processing.selftest.sh (204) + business-rule-engine.selftest.sh (79) + calculation.selftest.sh (112) + invoice-generation.selftest.sh (186) + approval-flow.selftest.sh (158) + zoho-upload-flow.selftest.sh (162)
+make test        # adapter.selftest.sh (43) + file-intake.selftest.sh (86) + intercompany-sales.selftest.sh (135) + kitchen-revenue.selftest.sh (199) + foodics-processing.selftest.sh (204) + business-rule-engine.selftest.sh (79) + calculation.selftest.sh (112) + invoice-generation.selftest.sh (186) + approval-flow.selftest.sh (158) + zoho-upload-flow.selftest.sh (162) + audit-flow.selftest.sh (180)
 # Post-deploy (running stack):
 docker exec langflow python -m lfx extension validate /app/extensions/ar_common
 docker exec langflow python -m lfx extension validate /app/extensions/ar_tools

@@ -3,7 +3,7 @@
 | Doc | Purpose |
 |-----|---------|
 | [Project Constitution](../../docs/cosmic-ar-constitution.md) | Binding engineering standards (the 20 sections) |
-| [Architecture](../../docs/cosmic-ar-architecture.md) | Supervisor + fifteen subflows + shared components + LangGraph state + diagrams |
+| [Architecture](../../docs/cosmic-ar-architecture.md) | Supervisor + sixteen subflows + shared components + LangGraph state + diagrams |
 | [Contracts](contracts.md) | JSON Schema + validation rules + examples for the 14 wire contracts |
 | [Components](components.md) | Reusable lfx components (`cosmic_common`) — 15 components with the 9 facets |
 | [Supervisor](supervisor.md) | The supervisor agent — responsibilities→nodes, canvas wiring, run/resume, approval round-trip, build-phase checklist |
@@ -15,6 +15,7 @@
 | [Invoice Generation Flow](invoice-generation.md) | The 15th subflow — take a validated-JSON invoice request (customer_ref, line_items, totals, issue_date, currency) and assemble a draft InvoiceData, then generate 8 artifacts (Invoice JSON/PDF render-spec/Excel render-spec/draft Journal Entry/Customer Statement/Zoho Upload File/Invoice Metadata + WorkflowState) as JSON-in-envelope; v1 read-only generate + draft (no posting; PDF/Excel binaries are build-phase) |
 | [Human Approval Flow](approval-flow.md) | The 9th subflow — take a validated-JSON review packet (Revenue/Expense/Invoice/Validation summaries + proposal), PAUSE via §19 interrupt, PRESENT the packet, CAPTURE Approve/Reject/Request-Changes on resume, UPDATE WorkflowState, LOG an audit record (§13); emits an ApprovalResult. Standalone presentational surface (no supervisor change); v1 single-approver + InMemorySaver |
 | [Zoho Upload Flow](zoho-upload-flow.md) | The 7th subflow — take a validated-JSON `ZohoUploadRequest` (§1 `approval_ref` + a batch of `InvoiceData`), VALIDATE mandatory fields, UPLOAD each to Zoho Books with §10 retry, ROLL BACK (delete) the created invoices on any partial failure (all-or-nothing), STORE zoho_id + upload timestamp, LOG an AuditRecord per create/rollback (§13), UPDATE WorkflowState, RETURN a per-invoice `ZohoUploadResult` + batch summary; §1 `approval_ref` required at the boundary (no in-flow interrupt); deterministic stub transport v1 (real `ZohoBooksARTool` POST/DELETE build-phase) |
+| [Audit Flow](audit-flow.md) | The 16th subflow — collect a run's execution history/input files/validation reports/calculation results/invoices/approvals/Zoho upload results/execution time/errors/warnings (a validated-JSON `AuditRequest` wrapper), VALIDATE + COLLECT the artifacts, synthesize an immutable §13 audit log (append-only AuditRecords, one per artifact + a terminal `audit.summary`), GENERATE an `ExecutionSummary`, UPDATE WorkflowState, RETURN the Audit JSON; read-only emission — no §1 gate, no transport (Postgres/Langfuse persistence build-phase); count Fifteen→Sixteen; wired into the supervisor (`RunFlow-ar16`) |
 | [Environment variables](environment.md) | `.env` vars, LangFlow Global Variables, build-phase vars |
 | [ADRs](adr/README.md) | Architecture Decision Records |
 | [Runbooks](runbooks/README.md) | Operational procedures (placeholders) |

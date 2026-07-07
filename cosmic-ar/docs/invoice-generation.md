@@ -247,7 +247,7 @@ done here):
    `InvoiceData`/`zoho_upload`.
 6. **Layout Global Variable** — move the `layout` spec from a flow input to a
    plain-JSON LangFlow Global Variable (§17 — ADR-0009 §12).
-7. **Import the fifteen subflows first** (incl. `ar_invoice_generation.json`),
+7. **Import the sixteen subflows first** (incl. `ar_invoice_generation.json`),
    then `supervisor.json`; open the supervisor flow so the 15th `RunFlow`
    resolves `flow_id_selected`; `docker compose restart langflow`.
 8. **Swap `InMemorySaver` → Postgres saver** (shared with the supervisor —

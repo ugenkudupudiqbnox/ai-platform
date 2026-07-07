@@ -82,8 +82,8 @@ from components.ar_common.agent_state import AgentState, Approval
 # Flow, the 12th — ADR-0006) + ar_foodics_processing (the Foodics Processing
 # Flow, the 13th — ADR-0007) + ar_calculation (the Calculation Flow, the 14th —
 # ADR-0008) + ar_invoice_generation (the Invoice Generation Flow, the 15th —
-# ADR-0009; architecture §4's "Nine reusable subflows" is amended to "Fifteen"
-# by those ADRs).
+# ADR-0009) + ar_audit (the Audit Flow, the 16th — ADR-0012; architecture §4's
+# "Nine reusable subflows" is amended to "Sixteen" by those ADRs).
 SUBFLOWS: tuple[str, ...] = (
     "ar_fetch_invoices",
     "ar_fetch_receipts",
@@ -100,6 +100,7 @@ SUBFLOWS: tuple[str, ...] = (
     "ar_foodics_processing",
     "ar_calculation",
     "ar_invoice_generation",
+    "ar_audit",
 )
 
 # §19 tiers. read-only/auto proceed unattended; approval/dual-control pause.
@@ -119,6 +120,7 @@ TIER: dict[str, str] = {
     "ar_foodics_processing": "approval",  # invoice production intent, but v1 is compute + draft only — gate dormant (ADR-0007)
     "ar_calculation": "read-only",  # computes + reports the 9 Revenue/Discount/VAT/Municipality Tax/Royalty/Collections/Expenses/Net Receivable/Net Payable figures via the Business Rule Engine; no posting (ADR-0008)
     "ar_invoice_generation": "read-only",  # generates the 8 invoice artifacts — Invoice JSON/PDF/Excel/Journal Entry/Customer Statement/Zoho Upload File/Metadata + WorkflowState — as draft JSON-in-envelope; no posting; PDF/Excel binaries build-phase (ADR-0009)
+    "ar_audit": "read-only",  # collects the run's artifacts → immutable §13 audit log (AuditRecords) + ExecutionSummary; no mutation (ADR-0012)
 }
 
 # Intent → subflow routing keywords (deterministic v1 classifier).
@@ -189,6 +191,16 @@ INTENT_KEYWORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("ar_calculation", ("calculation", "calculate revenue", "vat calculation",
                         "municipality tax", "royalty", "net receivable",
                         "net payable", "business rule engine", "calc flow")),
+    # Audit: an explicit "audit / audit log / execution summary / run summary /
+    # run history / audit trail" intent routes to the Audit Flow. It collects the
+    # run's artifacts (execution history, input files, validation reports,
+    # calculation results, invoices, approvals, Zoho upload results, execution
+    # time, errors, warnings) from a caller-assembled AuditRequest wrapper,
+    # synthesizes an immutable §13 audit log + an ExecutionSummary, and returns
+    # the Audit JSON + WorkflowState. Read-only emission — no §1 gate (ADR-0012).
+    # "summary report" stays with ar_reporting (no collision).
+    ("ar_audit", ("audit", "audit log", "execution summary", "run summary",
+                   "run history", "audit trail")),
 )
 
 # §4 fail-safe threshold for the deterministic classifier.

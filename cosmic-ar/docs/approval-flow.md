@@ -226,7 +226,7 @@ validators in sync (hand-rolled stdlib, no `jsonschema` dep).
    shows approve/reject only.
 5. **Swap `InMemorySaver` → Postgres saver** (shared with the supervisor —
    ADR-0003 build-phase; this flow follows for free).
-6. **Import the fifteen subflows first** (incl. the now-wired `ar_approval.json`),
+6. **Import the sixteen subflows first** (incl. the now-wired `ar_approval.json`),
    then `supervisor.json`; open the supervisor flow so `RunFlow(ar_approval)`
    resolves `flow_id_selected`; `docker compose restart langflow`.
 
