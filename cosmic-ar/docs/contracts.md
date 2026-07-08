@@ -983,6 +983,35 @@ requires a written waiver + ADR (per the authority note above).
   run-metadata / result-merge reshape is the deferred `V1-ENVELOPE-META`
   (v2 — coordinated adapter + self-test contract change), not a regression
   introduced here.
+- **`V1-RESULT-SURFACE`** (resolved) — the supervisor's `AR_OK` envelope
+  dropped the subflow's computed figures: `_finalize_envelope` built `base`
+  with no `data`, and `_node_invoke` only lifted `totals`/`audit_refs` into
+  top-level fields, so the response was `{"status":"ok","code":"AR_OK",
+  "data":null,...}` with no numbers (the subflow's real figures lived under its
+  own `data.calculation_result.totals` and never reached the response). Fix:
+  `_node_invoke` now stores the subflow's §14 `data` into a new additive
+  `AgentState.result_data` field (defaulted `None` — backward compatible, same
+  pattern as the ADR-0003 orchestration fields); `_finalize_envelope`'s `base`
+  sets `data = {"result": state.result_data} if state.result_data else {}`. The
+  subflow payload is nested under `data.result` (not flat) so the deferred
+  `data.execution_summary` (V1-ENVELOPE-META) can be added later without
+  restructuring. The `pending_approval`/`awaiting_approval` branches still
+  override `data` to `{action, tier}` (approval contract unchanged). On the
+  `failed` path `data.result` carries the subflow's `validation_report`/
+  `exception_report`. **Deploy note:** because `agent_state.py` is a regular
+  imported module cached in the long-running LangFlow process's `sys.modules`
+  (unlike the embedded component code, which lfx recompiles per run), this
+  change required a `docker restart aiplatform-langflow-1` to reload the
+  module — the no-restart property held by the prior V1-* deploys (which only
+  touched embedded code) does NOT extend to imported-module edits. Verified
+  live: `ar_calculation` NL+JSON → `AR_OK` with `data.result.calculation_result
+  .totals` = the 9 figures (revenue 9700.00, vat 1455.00, municipality_tax
+  1358.00, royalty 194.00, collections 5000.00, expenses 4000.00,
+  net_receivable 7013.00, net_payable 5552.00); `ar_audit` → `AR_OK` with
+  `data.result` (audit_log/execution_summary/…); `ar_issue_invoice` →
+  `pending_approval` / `AR_APPROVAL_REQUIRED` with `data={action,tier}` (§19
+  intact); `ar_kitchen_revenue` → error with `data.result.validation_report`
+  (no parse-error regression).
 
 For the historical build-phase caveat set carried by the individual flows (Zoho
 transport stub, PDF/Excel render-ready specs, InMemorySaver non-durability,

@@ -60,3 +60,10 @@ class AgentState:
     error: Optional[dict[str, str]] = None  # {"code": "AR_*", "message": "..."} (§9)
     created_at: str = ""  # ISO-8601 UTC; ExecutionSummary.started_at (§12)
     updated_at: str = ""  # ISO-8601 UTC; last node touch (§12)
+    # The routed subflow's envelope ``data`` (its §14 result payload), surfaced
+    # by the supervisor under ``data.result`` so the computed numbers actually
+    # reach the response. None when no subflow ran (AR_NOT_FOUND) or before
+    # invoke. Additive/defaulted — backward compatible with prior construction
+    # and readers (V1-RESULT-SURFACE). ``data.execution_summary`` conformance
+    # (matched/outstanding/posted run-metadata) is the deferred V1-ENVELOPE-META.
+    result_data: Optional[dict] = None

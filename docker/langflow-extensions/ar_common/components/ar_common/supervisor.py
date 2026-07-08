@@ -787,6 +787,9 @@ def _node_invoke(state: AgentState, runtime: Runtime[SupervisorContext]) -> dict
         "idempotency_keys": idem_keys,
         "tool_call_ref": f"{state.trace_id}:{intent}:0",
         "updated_at": now,
+        # Carry the subflow's §14 result payload through to the envelope so the
+        # computed numbers reach the response under data.result (V1-RESULT-SURFACE).
+        "result_data": data,
     }
     status = envelope.get("status") if isinstance(envelope, dict) else None
     if status == "pending_approval":
@@ -1028,6 +1031,12 @@ class SupervisorAgentComponent(Component):
             "checkpoint_id": self._checkpoint_id(graph, config),
             "subflows_invoked": [state.intent] if state.intent else [],
             "contract_version": "1.0.0",
+            # Surface the routed subflow's §14 result payload under data.result
+            # (V1-RESULT-SURFACE). Nested (not flat) so the deferred
+            # data.execution_summary (V1-ENVELOPE-META) can be added later
+            # without restructuring this. Overridden to {action, tier} on the
+            # pending/awaiting branches below.
+            "data": {"result": state.result_data} if state.result_data else {},
         }
         # Paused at the gate ⇒ pending approval (§19).
         if pending:
