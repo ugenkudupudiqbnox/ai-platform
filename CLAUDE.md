@@ -107,6 +107,51 @@ When adding non-trivial script behavior: factor into functions, guard main, add 
 - **Commits**: imperative, Conventional Commits (`feat:`/`fix:`/`docs:`/`ci:`/`refactor:`…).
 - **Security**: never commit secrets, populated `.env`, or rendered `realm.json`/`librechat.yaml` (all git-ignored — keep them so). New services should run non-root, drop capabilities, mount config read-only, avoid default creds. See `docs/security.md`.
 
+## Cosmic AR supervisor (live deploy & verification)
+
+The Cosmic AR Agent is a LangFlow-resident supervisor (`SupervisorAgentComponent`,
+embedded in `cosmic-ar/flows/supervisor.json`, UUID in `.env`
+`LANGFLOW_ADAPTER_FLOW_IDS`) that routes to 9 AR subflows by intent and returns a
+§14 envelope. Source lives under `docker/langflow-extensions/ar_common/` (bind
+mounted read-only at `/app/extensions:ro` — host `.py` edits are live, no image
+rebuild). The adapter (`docker/langflow-adapter/`) forwards envelopes as
+OpenAI-schema `message.content`. See `cosmic-ar/docs/contracts.md` for the V1-*
+caveat log and `cosmic-ar/docs/session-notes-*.md` for run history.
+
+**Deploy mechanism (no UUID churn):** edit the repo `.py` → re-embed into
+`supervisor.json` `nodes[].data.node.template.code.value` **byte-identical**
+(`json.dump(indent=2, ensure_ascii=False)`) → in-place `PATCH
+/api/v1/flows/<UUID>` (UUID unchanged → **no adapter repoint/recreate**).
+DELETE/re-POST would mint a fresh supervisor UUID and force a
+`set_env LANGFLOW_ADAPTER_FLOW_IDS` + adapter recreate — avoid it; use PATCH.
+
+**Restart rule (critical, easy to get wrong):**
+- **Embedded** component code (`supervisor.py`'s embedded copy in
+  `supervisor.json`) is recompiled by lfx **per run → no container restart**.
+- **Imported** modules (`agent_state.py`, `envelope.py`, `idempotency.py`,
+  other `ar_common` modules) are cached in the long-running LangFlow
+  process's `sys.modules` → **require `docker restart aiplatform-langflow-1`**
+  after PATCH (then wait ~15s for healthy). Skipping this surfaces as
+  `'AgentState' object has no attribute '<new field>'`.
+
+**Verification is the real REST path, not in-process:** run
+`docker exec aiplatform-langflow-1 curl -s --compressed -X POST
+http://localhost:7860/api/v1/run/<UUID> …` with a **real NL+JSON** message.
+This exercises `_finalize_envelope`. In-process `tool.ainvoke` tests bypass it
+and can mask defects (a prior "AR_OK" check fed pure `json.dumps(payload)`
+straight to the tool and missed the NL-prefix parse bug). Regression-sweep after
+any supervisor change: `ar_calculation` (AR_OK + figures under
+`data.result`), `ar_audit` (AR_OK), `ar_issue_invoice` (`pending_approval`,
+§19 gate intact, `data={action,tier}`), `ar_kitchen_revenue` (error, no
+parse-error regression).
+
+**Envelope shape:** on `AR_OK` the supervisor surfaces the routed subflow's §14
+result under `data.result` (nested — not flat — so the deferred
+`data.execution_summary` per `execution-summary.schema.json` composes later
+without restructuring). `pending_approval`/`awaiting_approval` keep
+`data={action,tier}` (§19). Full §14 conformance + the LangGraph `Command(resume=)`
+§19 resume path are deferred to v2/build-phase.
+
 ## graphify
 
 This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
