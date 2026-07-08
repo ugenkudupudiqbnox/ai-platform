@@ -26,9 +26,19 @@ It also defines the typed **state schema** in `components/ar_common/agent_state.
 
 ## Credentials
 
-This bundle requires **no credentials** itself. Source-system credentials
-(`ZOHO_*`, `FOODICS_API_TOKEN`) are handled by the `ar_tools` bundle via LangFlow
-Secret Global Variables.
+This bundle hosts the AR subflows' **real vendor transports**
+(`zoho_transport.RealZoho`, `foodics_transport.RealFoodics`) plus the shared
+`vendor_secrets` resolver. The subflow components resolve source-system
+credentials (`ZOHO_*`, `FOODICS_*`) **by name** from LangFlow Secret Global
+Variables at runtime via `vendor_secrets.read_secret(component, name)` (the
+component carries `user_id`; no `SecretStrInput` is added to the subflows → no
+flow-JSON surgery). When a required cred is absent, each transport keeps its
+fail-safe (Zoho → `StubZohoUpload`; Foodics → files / `AR_NOT_IMPLEMENTED`), so
+the bundle imports and the flows run offline with **no credentials**. Foodics is
+OAuth 2.0 (`FOODICS_CLIENT_ID`/`CLIENT_SECRET`/`REFRESH_TOKEN`/`BUSINESS_ID`) —
+the obsolete static `FOODICS_API_TOKEN` is not used. See
+[`cosmic-ar/docs/environment.md`](../../../cosmic-ar/docs/environment.md) for the
+full credential-setup guide.
 
 ## Layout
 
@@ -44,6 +54,12 @@ ar_common/                      # inline-bundle dir MUST be snake_case (bundle-n
     idempotency.py              # IdempotencyKeyComponent
     checkpoint.py               # CheckpointComponent (+ BaseCheckpointSaver outline)
     audit.py                    # AuditRecordComponent
+    vendor_secrets.py           # Secret Global Variable resolver (by name; §16)
+    zoho_transport.py           # RealZoho — real Zoho Books POST/DELETE (build-phase)
+    foodics_transport.py        # RealFoodics — real Foodics OAuth list ops (build-phase)
+    zoho_upload_flow.py         # ar_issue_invoice subflow (embeds RealZoho when creds present)
+    foodics_processing.py       # ar_foodics_processing subflow (embeds RealFoodics when creds present)
+    …                           # the other AR subflow components (calculation, audit, …)
 ```
 
 ## Validate offline

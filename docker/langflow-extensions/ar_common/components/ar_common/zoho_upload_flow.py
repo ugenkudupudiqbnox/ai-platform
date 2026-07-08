@@ -1204,6 +1204,32 @@ class ZohoUploadFlowComponent(Component):
                 "flow_id": FLOW_ID,
                 "model_name": model_name,
             }
+            # Build-phase (§16): swap in the real Zoho Books transport when the
+            # operator has configured credentials (LangFlow Secret Global
+            # Variables, resolved by the subflow component — which carries
+            # user_id — via vendor_secrets). When absent (offline / no-creds),
+            # keep the default ``StubZohoUpload`` so self-tests and the no-creds
+            # path stay green. Serial subflow runs (sync ``graph.invoke``) make
+            # the module-global ``set_transport`` safe in practice.
+            try:
+                from .vendor_secrets import read_secret
+                _zoho_client_id = read_secret(self, "ZOHO_CLIENT_ID")
+                _zoho_client_secret = read_secret(self, "ZOHO_CLIENT_SECRET")
+                _zoho_refresh_token = read_secret(self, "ZOHO_REFRESH_TOKEN")
+                _zoho_org_id = read_secret(self, "ZOHO_ORG_ID")
+                if (_zoho_refresh_token and _zoho_client_id
+                        and _zoho_client_secret and _zoho_org_id):
+                    from .zoho_transport import RealZoho
+                    set_transport(RealZoho({
+                        "client_id": _zoho_client_id,
+                        "client_secret": _zoho_client_secret,
+                        "refresh_token": _zoho_refresh_token,
+                        "organization_id": _zoho_org_id,
+                        "books_api_url": read_secret(self, "ZOHO_BOOKS_API_URL"),
+                        "accounts_url": read_secret(self, "ZOHO_ACCOUNTS_URL"),
+                    }))
+            except Exception:  # noqa: BLE001 — transport wiring must never break the run
+                pass
             graph = self._get_graph()
             config = {"configurable": {"thread_id": session_id}}
             initial = ZohoUploadState(

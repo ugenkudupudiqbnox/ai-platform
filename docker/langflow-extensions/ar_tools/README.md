@@ -16,6 +16,16 @@ for the binding standards.
 > skeletons whose output methods return placeholder `Message` responses. No HTTP
 > calls or OAuth-refresh logic is implemented yet — that is the build phase.
 
+> **AR Foodics path superseded.** The AR `ar_foodics_processing` subflow no longer
+> imports `FoodicsARTool` here — that cross-bundle import was never on `sys.path`
+> and always returned `None`. The real Foodics transport now lives in the
+> `ar_common` bundle as `foodics_transport.RealFoodics` (OAuth 2.0 client-id/
+> secret/refresh → Bearer + `X-Business`, wired via the `set_foodics_creds` seam).
+> The `FoodicsARTool` scaffold here is retained for AP/AR tool symmetry but is
+> **unused by the AR flows**; the obsolete `FOODICS_API_TOKEN` is not read by AR
+> (AR uses `FOODICS_CLIENT_ID`/`CLIENT_SECRET`/`REFRESH_TOKEN`/`BUSINESS_ID`).
+> See [`cosmic-ar/docs/environment.md`](../../../cosmic-ar/docs/environment.md).
+
 ## Why a bundle (not inline custom components)
 
 Same rationale as the sibling `ap_tools` bundle: the agent flow is exposed via

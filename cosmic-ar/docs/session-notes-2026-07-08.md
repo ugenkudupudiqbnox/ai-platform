@@ -135,3 +135,65 @@ surface the subflow's computed numbers in the supervisor response.
   supervisor envelope` (V1-RESULT-SURFACE)
 
 All pushed to `origin/main` (fast-forward). `graphify update .` run after each.
+
+## Real Zoho Books + Foodics sandbox transports (build-phase, this session)
+
+**Goal:** make `ar_issue_invoice` + `ar_foodics_processing` perform real HTTP
+against vendor sandboxes (the user asked to deploy + test in Zoho/Foodics
+sandboxes and how to set up the API keys). User chose **Zoho + Foodics together**
+and **LangFlow Secret Global Variables** for credential storage.
+
+**Built (in `ar_common`, pure-Python transports — no lfx import, offline-testable):**
+- `vendor_secrets.py` — `read_secret(component, name, default)` resolves a named
+  Secret Global Variable via the subflow component's `variables(name, name)`
+  (lfx sync wrapper; the component carries `user_id`, the DB-lookup key), unwraps
+  `pydantic.SecretStr` via `get_secret_value()`, falls back to `os.getenv` then
+  `default`. Returns `None` when absent → fail-safe stays.
+- `zoho_transport.py` — `RealZoho(creds)`: OAuth refresh-on-401 + POST
+  `/invoices` + DELETE `/invoices/{id}`, `organization_id` query param (mirrors
+  `ap_tools`); returns the `StubZohoUpload` dict shape (`ok, http_status, code,
+  zoho_id, zoho_ref, duplicate, transient`); maps 201/`code:0`→`AR_OK`,
+  duplicate-invoice-number→`AR_DUPLICATE`, 429/5xx→transient, hard 4xx→
+  `AR_VALIDATION`/`AR_FORBIDDEN`/`AR_NOT_FOUND`/`AR_UNEXPECTED`.
+- `foodics_transport.py` — `RealFoodics(creds)`: OAuth 2.0 client-id/secret/
+  refresh → 14-day Bearer + `X-Business`; `list_orders`/`list_order_items`/
+  `list_order_payments` → Laravel pagination; normalizes rows to the canonical
+  column names `_header_map` expects; returns a §14 envelope string; raises
+  transiently (`_TransientFoodicsError` with int `.code`, or `requests`
+  Connection/Timeout) so the §10 loop owns retry; hard 4xx → error envelope.
+
+**Wired (lazy, in the subflow components' `run()`):**
+- Zoho: `set_transport(RealZoho(creds))` when all four core creds present; else
+  keep `StubZohoUpload` (no reset — preserves self-test stubs).
+- Foodics: new `set_foodics_creds(creds)` module-global seam (mirrors Zoho's
+  `set_transport`); `_make_foodics_fetcher()` returns `RealFoodics(creds)` when
+  configured else `None` (drops the broken `from components.ar_tools.foodics_ar
+  import FoodicsARTool` cross-bundle import). `run()` resets to `None` on the
+  no-creds path so a prior run's creds never leak.
+
+**Deployed:** re-embedded both edited `.py` byte-identical into
+`ar_issue_invoice.json` + `ar_foodics_processing.json` → in-place PATCH by live
+UUID (`b5b49e24…` / `87d38266…`, unchanged → no adapter repoint) →
+`docker restart aiplatform-langflow-1` (new imported modules cached in
+`sys.modules`). DB-embedded code verified (markers + lengths match disk).
+
+**Verified:** `make test` green (22 suites / 1776 checks); egress OK (TCP:443 to
+`accounts.zoho.com`/`www.zohoapis.com`/`api.foodics.com`/`console-sandbox.foodics.com`);
+SSRF irrelevant (transports call `requests` directly, bypassing lfx's
+`validate_url_for_ssrf`; `LANGFLOW_SSRF_ALLOWED_HOSTS` is a bypass-list, not a
+restrict-to-only gate); no-creds regression sweep via the real supervisor REST
+path — `ar_foodics_processing` routes → §19 `pending_approval` (clean),
+`ar_calculation` → `AR_OK` (supervisor + RunFlow path healthy post-restart).
+
+**Key insight — SSRF:** the transports use raw `requests`, so lfx's SSRF layer
+does not gate them. `LANGFLOW_SSRF_ALLOWED_HOSTS=10.14.210.7` is a *bypass-list*
+(`is_host_allowed` skips the blocked-range check for listed private hosts), not a
+restrict-to-only gate — public vendor hosts are allowed regardless. The
+environment.md + build-phase wiring summary were corrected (they previously said
+the vendor hosts "must be listed").
+
+**Next / blocker:** live real-vendor calls are gated on the operator creating the
+Secret Global Variables in the LangFlow UI (the user's "how to set up the API
+keys" question → answered in `cosmic-ar/docs/environment.md` with per-vendor
+obtain steps + UI creation steps + verify commands). **Infrasys still absent**
+(no flow/transport; Shiji partner endorsement is long-lead — start the email).

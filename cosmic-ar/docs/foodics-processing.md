@@ -118,13 +118,20 @@ fetches via `FoodicsARTool`.
 Excel/CSV readers and classified by role — filename keyword first, header-
 content fallback. This is deterministic, in-file, and needs no credentials (§16).
 
-**API path (build-phase seam):** `FoodicsARTool` is lazy-imported and its
-`fetch_foodics_data` is called with operations `list_orders` /
-`list_order_items` / `list_order_payments` inside the §10 retry loop.
-`FoodicsARTool` is a scaffold today (returns `AR_NOT_IMPLEMENTED`), so the API
-path **fails safe** with `AR_UPSTREAM` / `AR_NOT_IMPLEMENTED` until its order
-endpoints + a `FOODICS_API_TOKEN` Secret Global Variable (§16) are wired. The
-seam is the drop-in point for build-phase.
+**API path (now wired, gated on credentials):** `_make_foodics_fetcher()`
+returns the real transport — `ar_common.foodics_transport.RealFoodics` (OAuth 2.0
+client-id/secret/refresh → 14-day Bearer + `X-Business`, `list_orders` /
+`list_order_items` / `list_order_payments`, Laravel pagination, transient raises
+so the §10 loop owns retry) — when the Foodics Secret Global Variables are
+present (resolved by name via `vendor_secrets.read_secret`, threaded through the
+`set_foodics_creds` seam set by `FoodicsProcessingFlowComponent.run`). The prior
+broken cross-bundle `from components.ar_tools.foodics_ar import FoodicsARTool`
+import (never on `sys.path` → `None` → `AR_NOT_IMPLEMENTED`) was dropped. Absent
+creds → `_make_foodics_fetcher()` returns `None` → the API path **fails safe**
+(`AR_UPSTREAM` / `AR_NOT_IMPLEMENTED`) and `auto` mode falls back to files. See
+[`environment.md`](environment.md) for the credential setup (Foodics is OAuth, not
+the obsolete static `FOODICS_API_TOKEN`), and `contracts.md` `V1-STUB` (resolved
+for Foodics).
 
 ## The three-role classification
 

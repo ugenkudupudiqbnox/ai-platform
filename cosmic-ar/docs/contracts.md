@@ -1013,10 +1013,41 @@ requires a written waiver + ADR (per the authority note above).
   intact); `ar_kitchen_revenue` → error with `data.result.validation_report`
   (no parse-error regression).
 
-For the historical build-phase caveat set carried by the individual flows (Zoho
-transport stub, PDF/Excel render-ready specs, InMemorySaver non-durability,
-draft-only gates, cross-subflow audit auto-accumulation, `SecretStrInput`
-absence, resume-path live interaction, the retired `ar08` RunFlow slot), see
+- **`V1-STUB`** (resolved for Zoho + Foodics) — the vendor-touching AR subflows
+  were transport-stubbed: `ar_issue_invoice` used `StubZohoUpload` (deterministic
+  fake `zoho-inv-<uuid5>` IDs) and `ar_foodics_processing`'s API path hit a
+  broken cross-bundle import (`from components.ar_tools.foodics_ar import
+  FoodicsARTool` — `ar_tools` was never on `sys.path`) → `None` →
+  `AR_NOT_IMPLEMENTED`. Real transports now live in `ar_common`:
+  `zoho_transport.RealZoho` (OAuth refresh-on-401 + POST `/invoices` + DELETE
+  `/invoices/{id}`, `organization_id` query param — mirrors `ap_tools`'s working
+  pattern) wired via `ZohoUploadFlowComponent.run` → `set_transport(RealZoho(
+  creds))`; `foodics_transport.RealFoodics` (OAuth 2.0 client-id/secret/refresh
+  → 14-day Bearer + `X-Business`, `list_orders`/`list_order_items`/
+  `list_order_payments`, Laravel pagination, transient raises so the §10 loop
+  owns retry) wired via `foodics_processing._make_foodics_fetcher()` → the new
+  `set_foodics_creds(creds)` seam set by `FoodicsProcessingFlowComponent.run`.
+  Both resolve credentials **by name** from LangFlow Secret Global Variables via
+  `vendor_secrets.read_secret(component, name)` (the subflow component carries
+  `user_id`; no `SecretStrInput` added → no flow-JSON surgery); when a required
+  cred is absent they keep the fail-safe path (Zoho → `StubZohoUpload`; Foodics
+  → files / `AR_NOT_IMPLEMENTED`). Deployed via re-embed + in-place PATCH (both
+  subflow UUIDs unchanged → no adapter repoint) + `docker restart
+  aiplatform-langflow-1` (the new imported modules `vendor_secrets.py`/
+  `zoho_transport.py`/`foodics_transport.py` are cached in `sys.modules`).
+  Offline `make test` stays green (22 suites / 1776 checks); egress verified
+  (TCP:443 to `accounts.zoho.com` / `www.zohoapis.com` / `api.foodics.com` /
+  `console-sandbox.foodics.com`); no-creds regression sweep clean
+  (`ar_foodics_processing` routes → §19 `pending_approval`; `ar_calculation` →
+  `AR_OK`). **Live real-vendor calls are gated on the operator creating the
+  Secret Global Variables** — see [`environment.md`](environment.md#langflow-
+  secret-global-variables-managed-in-the-langflow-ui--not-env). **Infrasys
+  remains absent** (no flow/transport; Shiji partner endorsement is long-lead).
+
+For the historical build-phase caveat set still carried by the individual flows
+(PDF/Excel render-ready specs, InMemorySaver non-durability, draft-only gates,
+cross-subflow audit auto-accumulation, `SecretStrInput` absence on the subflow
+components, resume-path live interaction, the retired `ar08` RunFlow slot), see
 the per-flow docs and the cited ADRs.
 
 ---

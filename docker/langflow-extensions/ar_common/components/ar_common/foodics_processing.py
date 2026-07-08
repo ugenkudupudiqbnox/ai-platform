@@ -1506,18 +1506,45 @@ def _fetch_foodics_with_retry(operation: str, trace_id: str) -> dict[str, Any]:
                      trace_id=trace_id)
 
 
-def _make_foodics_fetcher() -> Any:
-    """Lazy-import + instantiate ``FoodicsARTool`` (the Foodics API seam).
+# Module-global Foodics credentials (resolved by the subflow component's run()
+# via vendor_secrets, set per run before graph.invoke). Serial subflow runs
+# (sync graph.invoke) make this safe in practice — mirrors the Zoho
+# ``set_transport`` seam. ``None`` ⇒ vendor not configured ⇒ fail-safe to the
+# files path / ``AR_NOT_IMPLEMENTED`` (offline + no-creds stay green).
+_FOODICS_CREDS: Optional[dict[str, Any]] = None
 
-    Returns None if the ``ar_tools`` bundle/dep is unavailable — the caller
-    surfaces ``AR_NOT_IMPLEMENTED``. The scaffold tool resolves its API token
-    from a Secret Global Variable (§16); wiring real HTTP + credentials is
-    build-phase.
+
+def set_foodics_creds(creds: Optional[dict[str, Any]]) -> None:
+    """Set the Foodics transport credentials for the current run (build-phase).
+
+    Pass ``None`` (or a dict missing a required cred) to keep the fail-safe
+    scaffold-off path (files mode / ``AR_NOT_IMPLEMENTED``). ``run()`` resets
+    this to ``None`` on the no-creds path so a prior run's creds never leak
+    into a later run in the long-running process.
     """
+    global _FOODICS_CREDS  # noqa: PLW0603 — intentional per-run module global
+    _FOODICS_CREDS = creds
+
+
+def _make_foodics_fetcher() -> Any:
+    """Instantiate the real Foodics transport (``RealFoodics``) when configured.
+
+    Returns ``None`` when Foodics credentials are absent (vendor not configured
+    / offline) so the caller surfaces ``AR_NOT_IMPLEMENTED`` and the flow fails
+    safe to the files path. Credentials are resolved by the subflow component
+    (which carries ``user_id``) via ``vendor_secrets.read_secret`` and threaded
+    here through the module-global ``set_foodics_creds`` seam. The previous
+    cross-bundle ``from components.ar_tools.foodics_ar import FoodicsARTool``
+    import is dropped — it was never on ``sys.path`` and always returned ``None``.
+    """
+    creds = _FOODICS_CREDS or {}
+    if not (creds.get("client_id") and creds.get("client_secret")
+            and creds.get("refresh_token") and creds.get("business_id")):
+        return None
     try:
-        from components.ar_tools.foodics_ar import FoodicsARTool
-        return FoodicsARTool()
-    except Exception:  # noqa: BLE001 — bundle absent on host is non-fatal here
+        from .foodics_transport import RealFoodics
+        return RealFoodics(creds)
+    except Exception:  # noqa: BLE001 — transport unavailable is non-fatal here
         return None
 
 
@@ -2004,6 +2031,32 @@ class FoodicsProcessingFlowComponent(Component):
                 "flow_id": "ar_foodics_processing",
                 "model_name": model_name,
             }
+            # Build-phase (§16): resolve Foodics credentials (LangFlow Secret
+            # Global Variables, by name) and thread them to the transport seam.
+            # Reset to None on the no-creds path so a prior run's creds never
+            # leak into this run (the seam is a module global in the long-running
+            # process). When absent, ``_make_foodics_fetcher`` returns None →
+            # the flow fails safe (files mode / AR_NOT_IMPLEMENTED).
+            try:
+                from .vendor_secrets import read_secret
+                _fd_refresh = read_secret(self, "FOODICS_REFRESH_TOKEN")
+                _fd_client_id = read_secret(self, "FOODICS_CLIENT_ID")
+                _fd_client_secret = read_secret(self, "FOODICS_CLIENT_SECRET")
+                _fd_business_id = read_secret(self, "FOODICS_BUSINESS_ID")
+                if (_fd_refresh and _fd_client_id and _fd_client_secret
+                        and _fd_business_id):
+                    set_foodics_creds({
+                        "client_id": _fd_client_id,
+                        "client_secret": _fd_client_secret,
+                        "refresh_token": _fd_refresh,
+                        "business_id": _fd_business_id,
+                        "api_url": read_secret(self, "FOODICS_API_URL"),
+                        "token_url": read_secret(self, "FOODICS_TOKEN_URL"),
+                    })
+                else:
+                    set_foodics_creds(None)
+            except Exception:  # noqa: BLE001 — creds wiring must never break the run
+                set_foodics_creds(None)
             graph = self._get_graph()
             config = {"configurable": {"thread_id": session_id}}
             initial = FoodicsProcessingState(

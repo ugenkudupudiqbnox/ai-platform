@@ -22,13 +22,19 @@ It is the row that **POSTs** an invoice to Zoho Books — distinct from
 "Zoho Upload File" artifact** for review. This flow is registered at tier
 `approval` and is in `FINANCIAL_INTENTS` — money moves here, so §1 applies.
 
-> **v1 uses a deterministic stub transport, not live Zoho.** A module-level
-> `_TRANSPORT = StubZohoUpload()` returns deterministic result dicts
-> (`zoho_id = f"zoho-inv-<uuid5(invoice_id)>"`) so the upload+retry+rollback
-> round-trip is **offline-testable with no live Zoho, no credentials**. The real
-> `ZohoBooksARTool.create_invoice`/`delete_invoice` (OAuth + POST/DELETE +
-> 401-retry, mirroring `ZohoBooksAPTool`) is wired at **build-phase** via
-> `set_transport(RealZoho())`; the flow code is unchanged (ADR-0011 §6).
+> **v1 default = deterministic stub transport; real Zoho is wired and gated on
+> credentials.** A module-level `_TRANSPORT = StubZohoUpload()` returns
+> deterministic result dicts (`zoho_id = f"zoho-inv-<uuid5(invoice_id)>"`) so the
+> upload+retry+rollback round-trip is **offline-testable with no live Zoho, no
+> credentials**. The real transport — `ar_common.zoho_transport.RealZoho`
+> (OAuth refresh-on-401 + POST `/invoices` + DELETE `/invoices/{id}`,
+> `organization_id` query param, mirroring `ZohoBooksAPTool`) — is **now wired**
+> via `ZohoUploadFlowComponent.run` → `set_transport(RealZoho(creds))` when the
+> Zoho Secret Global Variables are present (resolved by name via
+> `vendor_secrets.read_secret`); absent creds keep the stub so self-tests and the
+> no-creds path stay green. The flow code is unchanged (ADR-0011 §6). See
+> [`environment.md`](environment.md) for the credential setup, and `contracts.md`
+> `V1-STUB` (resolved for Zoho).
 
 ## The §1 `approval_ref`-at-the-boundary design
 
