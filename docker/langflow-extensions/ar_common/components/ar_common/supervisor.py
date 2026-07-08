@@ -545,6 +545,71 @@ def _build_tool_payload(tool: Any, user_input: str) -> dict[str, Any]:
     return {"input_value": user_input}
 
 
+def _extract_json_object(text: str) -> Optional[str]:
+    """Return the first balanced ``{...}`` JSON-object substring in ``text``, or None.
+
+    The user's chat message (as delivered by the OpenAI adapter) is natural
+    language with an embedded JSON payload — e.g. ``"Calculate AR for January
+    with this payload JSON: {\"trace_id\": ...}"``. The classifier matches NL
+    keywords, but every JSON subflow ``json.loads`` its ``ChatInput`` directly
+    and rejects the NL prefix, so the supervisor must hand the subflow the pure
+    JSON object. Scans for the first ``'{'``, balances braces (respecting string
+    literals / escapes), and returns the substring only if it parses to a JSON
+    object (V1-PAYLOAD-EXTRACT).
+    """
+    s = text or ""
+    start = s.find("{")
+    while start != -1:
+        depth = 0
+        in_str = False
+        esc = False
+        end = -1
+        for i in range(start, len(s)):
+            c = s[i]
+            if in_str:
+                if esc:
+                    esc = False
+                elif c == "\\":
+                    esc = True
+                elif c == '"':
+                    in_str = False
+                continue
+            if c == '"':
+                in_str = True
+            elif c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0:
+                    end = i
+                    break
+        if end != -1:
+            cand = s[start:end + 1]
+            try:
+                if isinstance(json.loads(cand), dict):
+                    return cand
+            except (TypeError, ValueError):
+                pass
+        start = s.find("{", start + 1)
+    return None
+
+
+def _subflow_input(user_input: str, intent: str) -> str:
+    """Derive the string handed to a routed subflow tool (V1-PAYLOAD-EXTRACT).
+
+    JSON-payload subflows ``json.loads`` their ``ChatInput`` directly and reject
+    the NL prefix, so extract the embedded JSON object and pass only that.
+    ``ar_approval`` consumes a natural-language decision reply (approval_ref +
+    verb) and is passed through verbatim. When no JSON object is found for a
+    JSON subflow, fall back to the raw message so the subflow returns its own
+    graceful ``AR_VALIDATION`` (§9) rather than a tool-level error.
+    """
+    if intent == "ar_approval":
+        return user_input
+    obj = _extract_json_object(user_input)
+    return obj if obj is not None else user_input
+
+
 def _extract_runflow_component(tool: Any) -> Optional[Any]:
     """Recover the ORIGINAL RunFlow component a RunFlow tool wraps (V1-RUNFLOW-TOOL-INPUT).
 
@@ -709,7 +774,8 @@ def _node_invoke(state: AgentState, runtime: Runtime[SupervisorContext]) -> dict
                           "message": f"Subflow '{intent}' is not wired on the canvas."},
                 "tool_call_ref": f"{state.trace_id}:{intent}:0",
                 "updated_at": now}
-    envelope = _invoke_with_retry(tool, ctx.get("user_input", ""), intent, state.trace_id)
+    envelope = _invoke_with_retry(tool, _subflow_input(ctx.get("user_input", ""), intent),
+                                  intent, state.trace_id)
     data = envelope.get("data") if isinstance(envelope, dict) else {}
     data = data if isinstance(data, dict) else {}
     # Idempotency key for any financial mutation (§10) — recorded so a resume

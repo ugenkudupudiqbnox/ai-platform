@@ -952,15 +952,37 @@ requires a written waiver + ADR (per the authority note above).
   resets `comp._last_run_outputs = None` before invoking, so the resolver reads
   fresh input. This is race-free because the supervisor runs one subflow at a
   time (sync `graph.invoke`). Verified live: `ar_calculation` runs end-to-end
-  through the supervisor → `AR_OK` with the 9 signed-2dp totals + 3 audit
-  checkpoints + `subflows_invoked=["ar_calculation"]`. The remaining subflows
-  (`ar_audit`/`ar_file_intake`/`ar_kitchen_revenue`) now execute and return
-  their own subflow-internal validation errors (missing JSON request / files),
-  not the tool-invocation error. The supervisor's top-level `totals`
-  (`matched`/`outstanding`/`posted`) stay `"0.00"` because `ar_calculation`
-  reports its figures under `data.calculation_result.totals`, not
-  `data.totals` — the cross-flow run-metadata merge is the deferred
-  `V1-ENVELOPE-META` reshape, not a regression.
+  through the supervisor → `AR_OK`. Note: this verification used a pure-JSON
+  tool input (it bypassed `_finalize_envelope`), so it did NOT catch the
+  payload-extraction gap below (`V1-PAYLOAD-EXTRACT`).
+- **`V1-PAYLOAD-EXTRACT`** (resolved) — the deeper live blocker. The OpenAI
+  adapter forwards the user's raw chat text as `input_value`; that text is
+  natural language with an embedded JSON payload (e.g. ``"Calculate AR for
+  January with this payload JSON: {…}"``) because the classifier matches NL
+  keywords. But every JSON subflow ``json.loads`` its `ChatInput` directly and
+  rejects the NL prefix → `AR_UNEXPECTED "payload JSON parse error: Expecting
+  value: line 1 column 1 (char 0)"`. The supervisor's `_node_invoke` passed the
+  whole `user_input` straight to the subflow. Fix: `_subflow_input(user_input,
+  intent)` extracts the first balanced `{…}` JSON object (brace-balanced,
+  string-literal/escape aware, validated to parse to a JSON object) and hands
+  only that to JSON subflows; `ar_approval` (natural-language decision reply)
+  is passed through verbatim; if no JSON object is found, the raw message is
+  passed so the subflow returns its own graceful `AR_VALIDATION` (§9). Verified
+  live through the real REST run path: `ar_calculation` with a real NL+JSON
+  message → `AR_OK` (`subflows_invoked=["ar_calculation"]`, 3 audit checkpoints,
+  checkpoint present); `ar_audit` → `AR_OK`; `ar_kitchen_revenue` routes +
+  executes and returns its own `"no readable files supplied"` (no parse-error
+  regression); `ar_issue_invoice` still gates to `pending_approval` /
+  `AR_APPROVAL_REQUIRED` with a minted `approval_ref` (§19 intact). The
+  supervisor's top-level `totals` (`matched`/`outstanding`/`posted`) stay
+  `"0.00"` and the envelope `data` is `null` on the `AR_OK` path because
+  `_finalize_envelope`'s `base` carries no `data` and `_node_invoke` only lifts
+  `totals`/`audit_refs` into top-level fields — the subflow's computed figures
+  (e.g. `ar_calculation`'s 9 totals under its own `data.calculation_result`)
+  are not yet surfaced in the supervisor envelope. That cross-flow
+  run-metadata / result-merge reshape is the deferred `V1-ENVELOPE-META`
+  (v2 — coordinated adapter + self-test contract change), not a regression
+  introduced here.
 
 For the historical build-phase caveat set carried by the individual flows (Zoho
 transport stub, PDF/Excel render-ready specs, InMemorySaver non-durability,
