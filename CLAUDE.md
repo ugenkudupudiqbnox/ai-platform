@@ -152,6 +152,65 @@ without restructuring). `pending_approval`/`awaiting_approval` keep
 `data={action,tier}` (§19). Full §14 conformance + the LangGraph `Command(resume=)`
 §19 resume path are deferred to v2/build-phase.
 
+### Cosmic AR vendor transports (Zoho Books + Foodics, build-phase)
+
+The two vendor-touching subflows (`ar_issue_invoice`, `ar_foodics_processing`)
+perform **real HTTP** against vendor sandboxes via pure-Python transports in
+`ar_common` (`zoho_transport.RealZoho`, `foodics_transport.RealFoodics`),
+**gated on credentials** (absent creds → fail-safe). Key decisions/patterns
+(durable — apply to any future vendor transport):
+
+- **Credentials by name from LangFlow Secret Global Variables, not `.env`/flow
+  inputs.** The subflow component (built by lfx → carries `user_id`, the
+  encrypted-DB lookup key) resolves secrets via `ar_common/vendor_secrets.py`
+  `read_secret(self, name)` → `self.variables(name, name)` (lfx sync wrapper;
+  unwrap `pydantic.SecretStr` via `get_secret_value()`) → `os.getenv` fallback →
+  `default`; the plaintext is threaded into the transport constructor. **No
+  `SecretStrInput` is added to the subflow components** → no flow-JSON template
+  surgery, no `requiresCredentials` flip (the `ap_tools` components read the
+  same names via `SecretStrInput(load_from_db=True)` → single source). Absent
+  creds keep the fail-safe (Zoho → `StubZohoUpload`; Foodics → files /
+  `AR_NOT_IMPLEMENTED`) so `make test` stays green offline.
+- **Transports call `requests` directly → lfx SSRF does NOT gate them.**
+  `LANGFLOW_SSRF_ALLOWED_HOSTS` (`lfx/utils/ssrf_protection.py` `is_host_allowed`)
+  is a **bypass-list** (allowlisted private hosts skip the blocked-range check),
+  NOT a restrict-to-only gate — public vendor hosts are allowed regardless. Do
+  not "fix" the allowlist to require the vendor hosts; verify container egress
+  (TCP:443) instead.
+- **Foodics is OAuth 2.0** (client-id/secret/refresh → 14-day Bearer +
+  `X-Business`), NOT a static token — `FOODICS_API_TOKEN` is obsolete; the
+  `ar_tools.foodics_ar.FoodicsARTool` scaffold is unused by AR (the real
+  transport is `ar_common.foodics_transport.RealFoodics`).
+- **Wiring seams (module globals; serial sync `graph.invoke` makes them safe):**
+  Zoho via `set_transport(RealZoho(creds))` in `ZohoUploadFlowComponent.run` (no
+  reset on no-creds → preserves self-test stubs). Foodics via the
+  `set_foodics_creds(creds)` seam set by `FoodicsProcessingFlowComponent.run`
+  (resets to `None` on no-creds so a prior run's creds never leak);
+  `_make_foodics_fetcher()` returns `RealFoodics(creds)` else `None` (drops the
+  broken `from components.ar_tools.foodics_ar import FoodicsARTool` cross-bundle
+  import). Transport contract: return the `StubZohoUpload` dict shape and
+  **don't raise** for ordinary API errors — the flow's §10 loop owns retry
+  (transient = transport-flagged/408/429/5xx; hard 4xx no-retry).
+- **Deploy = re-embed + in-place PATCH + restart.** Re-embed the edited `.py`
+  byte-identical into `cosmic-ar/flows/<flow>.json`
+  `nodes[].data.node.template.code.value` (`json.dump(indent=2,
+  ensure_ascii=False)`) → in-place `PATCH /api/v1/flows/<UUID>` (UUID unchanged
+  → no adapter repoint) → `docker restart aiplatform-langflow-1` (the new
+  transports are imported modules cached in `sys.modules`). Live subflow UUIDs:
+  `ar_issue_invoice`=b5b49e24…, `ar_foodics_processing`=87d38266….
+- **Infrasys is NOT integrated** (no flow/transport; zero repo references) —
+  partner-gated via Shiji (`developer.hero-cloud.com`,
+  `hk-infrasys-api-enquiry.list@shijigroup.com`). Long-lead; start the email in
+  parallel, don't look for Infrasys code.
+- **Live real-vendor verification is gated on the operator** creating the Secret
+  Global Variables in the LangFlow UI (Zoho: `ZOHO_CLIENT_ID/CLIENT_SECRET/
+  REFRESH_TOKEN/ORG_ID` + `ZOHO_BOOKS_API_URL/ACCOUNTS_URL`; Foodics:
+  `FOODICS_CLIENT_ID/CLIENT_SECRET/REFRESH_TOKEN/BUSINESS_ID` +
+  `FOODICS_API_URL/TOKEN_URL`). Setup guide + per-vendor obtain steps:
+  `cosmic-ar/docs/environment.md`. Notes: `cosmic-ar/docs/session-notes-
+  2026-07-08-vendor-transports.md`; caveat close-out: `cosmic-ar/docs/contracts.md`
+  `V1-STUB`.
+
 ## graphify
 
 This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
